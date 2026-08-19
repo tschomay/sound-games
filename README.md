@@ -2,6 +2,8 @@
 
 Browser games you play with your voice, and games your music plays with you.
 
+**Live: https://sound-games.vercel.app**
+
 Everything runs on the device — the microphone signal is analysed in the page and
 never leaves it.
 
@@ -16,7 +18,8 @@ npm run build
 ```
 
 The microphone needs a secure context, so on a phone use `localhost` or serve the
-dev server over HTTPS — plain `http://<lan-ip>` will not get a microphone.
+dev server over HTTPS — plain `http://<lan-ip>` will not get a microphone. The
+deployed site is HTTPS, so it works on a phone as-is.
 
 ## What's here
 
@@ -57,3 +60,15 @@ The other thing that decides whether a microphone game works is device variance,
 not signal processing. A hum reading −25 dB on a laptop reads −45 dB on a phone at
 arm's length, so games never see raw decibels or hertz — only values normalised
 against the player's own calibration profile.
+
+## Deploying
+
+Hosted on Vercel as the `sound-games` project (Vite preset, `npm run build` to
+`dist/`). Hash routing means no rewrite rules are needed — routes never reach the
+server.
+
+The project is not yet linked to the GitHub repository, so pushes do **not**
+deploy automatically. To turn that on, install the
+[Vercel GitHub App](https://github.com/apps/vercel) on `tschomay/sound-games`
+and connect the repo to the existing project; after that, `main` deploys to
+production and branches get preview URLs.
