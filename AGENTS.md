@@ -2,7 +2,7 @@
 
 ### Issue tracker
 
-Issues live as GitHub Issues on this repo (`tschomay/Harness-Playground`), operated via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+Issues live as GitHub Issues on this repo (`tschomay/sound-games`), operated via the `gh` CLI. See `docs/agents/issue-tracker.md`.
 
 ### Domain docs
 
