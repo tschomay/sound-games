@@ -4,7 +4,12 @@
  */
 import { OnsetDetector } from './onset';
 import { PitchDetector } from './pitch';
-import { DEFAULT_PROFILE, normaliseLevel, normalisePitch } from './calibration';
+import {
+  DEFAULT_PITCH_RANGE,
+  DEFAULT_PROFILE,
+  normaliseLevel,
+  normalisePitch,
+} from './calibration';
 import type { AudioSource, Bands, CalibrationProfile, Frame } from './types';
 
 const BAND_EDGES_HZ: Array<[keyof Bands, number, number]> = [
@@ -90,7 +95,12 @@ export class Analyser {
       pitchHz: pitch.hz,
       clarity: pitch.clarity,
       voiced: pitch.hz !== null,
-      pitchNorm: pitch.hz === null ? null : normalisePitch(pitch.hz, this.profile),
+      // A player who skipped the hum steps still gets a pitchNorm, against a
+      // default range — games that actually depend on it gate on the profile.
+      pitchNorm:
+        pitch.hz === null
+          ? null
+          : normalisePitch(pitch.hz, this.profile.pitchRange ?? DEFAULT_PITCH_RANGE),
       onset: onset.onset,
       flux: onset.flux,
       onsetStrength: onset.strength,

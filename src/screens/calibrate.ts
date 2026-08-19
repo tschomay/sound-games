@@ -1,58 +1,89 @@
 /**
- * Calibration flow. See ADR-0003 — this measures the numbers every game then
- * normalises against: the room's noise floor, the player's comfortable loudness,
- * and the top and bottom of their hum.
+ * Calibration flow. See ADR-0003 for why games read a profile rather than raw
+ * audio, and ADR-0004 for why this comes in two halves.
+ *
+ * Room first — noise floor and comfortable loudness — which every game needs and
+ * which is saved the moment it's measured. Then the hum range, which only
+ * voice-controlled games need, and which the player can skip.
  */
 import { ensureMicSession, refreshProfile, stopSession } from '../engine/session';
-import { padPitchRange, saveProfile } from '../engine/calibration';
+import { loadProfile, padPitchRange, saveProfile } from '../engine/calibration';
 import { hzToNote } from '../engine/pitch';
 import { startLoop } from '../engine/canvas';
 import { el, navigate, overlay, topbar, type Cleanup } from '../ui';
-import type { Frame } from '../engine/types';
+import type { CalibrationProfile, Frame, PitchRange } from '../engine/types';
+
+interface Measurements {
+  noiseFloorDb: number;
+  loudDb: number;
+  lowHz: number;
+  highHz: number;
+}
 
 interface Step {
-  id: 'silence' | 'loud' | 'low' | 'high';
+  id: keyof Measurements;
   title: string;
   instruction: string;
   /** Seconds of usable samples needed before the step is satisfied. */
   needed: number;
   /** Seconds before we give up and offer a retry. */
   timeout: number;
-  usable(frame: Frame, noiseFloorDb: number): boolean;
+  usable(frame: Frame, measured: Measurements): boolean;
+  /** Which percentile of the collected samples becomes the measurement. */
+  percentile: number;
+  sample(frame: Frame): number;
+  describe(frame: Frame): string;
 }
 
-const STEPS: Step[] = [
+const ROOM_STEPS: Step[] = [
   {
-    id: 'silence',
+    id: 'noiseFloorDb',
     title: 'Silence',
     instruction: 'Stay quiet for a moment so we can hear how noisy your room is.',
     needed: 2,
     timeout: 6,
     usable: () => true,
+    // A low percentile, not the mean: a cough or a passing car during the quiet
+    // step shouldn't raise the floor for the whole session.
+    percentile: 0.2,
+    sample: (frame) => frame.db,
+    describe: (frame) => `Room noise ${Math.round(frame.db)} dB`,
   },
   {
-    id: 'loud',
+    id: 'loudDb',
     title: 'Comfortable volume',
-    instruction: 'Now hum steadily, at a volume you could keep up for a whole game.',
+    instruction: 'Now make a steady sound — hum, sing, anything you could keep up for a whole game.',
     needed: 1.5,
     timeout: 12,
-    usable: (frame, floor) => frame.db > floor + 6,
+    usable: (frame, measured) => frame.db > measured.noiseFloorDb + 6,
+    percentile: 0.7,
+    sample: (frame) => frame.db,
+    describe: (frame) => `${Math.round(frame.db)} dB`,
   },
+];
+
+const VOICE_STEPS: Step[] = [
   {
-    id: 'low',
+    id: 'lowHz',
     title: 'Your lowest note',
     instruction: 'Hum the lowest note you can hold comfortably.',
     needed: 1,
     timeout: 14,
     usable: (frame) => frame.voiced && frame.clarity > 0.9,
+    percentile: 0.5,
+    sample: (frame) => frame.pitchHz ?? 0,
+    describe: describePitch,
   },
   {
-    id: 'high',
+    id: 'highHz',
     title: 'Your highest note',
     instruction: 'Now hum the highest note you can hold comfortably. No need to strain.',
     needed: 1,
     timeout: 14,
     usable: (frame) => frame.voiced && frame.clarity > 0.9,
+    percentile: 0.5,
+    sample: (frame) => frame.pitchHz ?? 0,
+    describe: describePitch,
   },
 ];
 
@@ -63,15 +94,21 @@ export function calibrateScreen(root: HTMLElement): Cleanup {
   const stage = el('div', { class: 'stage' });
   const body = el('div', { class: 'stack' });
   stage.appendChild(body);
+  root.appendChild(el('div', { class: 'screen screen--scroll' }, topbar('Calibrate'), stage));
 
-  const screen = el('div', { class: 'screen' }, topbar('Calibrate'), stage);
-  root.appendChild(screen);
+  const measurements: Measurements = {
+    noiseFloorDb: -65,
+    loudDb: -22,
+    lowHz: 110,
+    highHz: 440,
+  };
 
+  let readFrame: (() => Frame) | null = null;
   let stopRendering: (() => void) | null = null;
   let disposed = false;
 
   const gate = overlay(
-    'Calibration takes about twenty seconds: a moment of quiet, then three hums.',
+    'First a few seconds of quiet, then one steady sound. That covers every game; voice games need a short hum test after that, which you can skip.',
     'Start',
     () => void begin(),
     'Your audio is analysed on your device and never leaves it.',
@@ -84,73 +121,52 @@ export function calibrateScreen(root: HTMLElement): Cleanup {
       const session = await ensureMicSession();
       if (disposed) return;
       gate.root.remove();
-      stopRendering = run(session.analyser.read.bind(session.analyser));
+      readFrame = session.analyser.read.bind(session.analyser);
+      runPhase(ROOM_STEPS, finishRoom);
     } catch (error) {
       gate.showError(error instanceof Error ? error.message : 'Could not open the microphone.');
     }
   }
 
-  function run(readFrame: () => Frame): () => void {
+  /** Run a list of steps to completion, then hand back. */
+  function runPhase(steps: Step[], onComplete: () => void): void {
+    const read = readFrame;
+    if (!read) return;
+
     let stepIndex = 0;
     let elapsed = 0;
     const collected: number[] = [];
-    const measurements = { noiseFloorDb: -65, loudDb: -22, lowHz: 110, highHz: 440 };
 
-    const title = el('h1', { text: STEPS[0].title });
-    const instruction = el('p', { text: STEPS[0].instruction });
+    const title = el('h1', { text: steps[0].title });
+    const instruction = el('p', { text: steps[0].instruction });
     const meterFill = el('div', { class: 'meter-fill' });
-    const meter = el('div', { class: 'meter' }, meterFill);
     const progressFill = el('div', { class: 'progress-fill' });
-    const progress = el('div', { class: 'progress' }, progressFill);
     const detail = el('p', { class: 'hint', text: ' ' });
     const retry = el('button', { class: 'btn-primary', text: 'Try this step again' });
     retry.style.display = 'none';
-    body.replaceChildren(title, instruction, meter, progress, detail, retry);
+    body.replaceChildren(
+      title,
+      instruction,
+      el('div', { class: 'meter' }, meterFill),
+      el('div', { class: 'progress' }, progressFill),
+      detail,
+      retry,
+    );
 
     const startStep = (): void => {
       elapsed = 0;
       collected.length = 0;
-      const step = STEPS[stepIndex];
-      title.textContent = step.title;
-      instruction.textContent = step.instruction;
+      title.textContent = steps[stepIndex].title;
+      instruction.textContent = steps[stepIndex].instruction;
       retry.style.display = 'none';
       detail.textContent = ' ';
     };
-
     retry.addEventListener('click', startStep);
-
-    const finishStep = (): void => {
-      const step = STEPS[stepIndex];
-      switch (step.id) {
-        case 'silence':
-          // A low percentile, not the mean: a cough or a passing car during the
-          // quiet step shouldn't raise the floor for the whole session.
-          measurements.noiseFloorDb = percentile(collected, 0.2);
-          break;
-        case 'loud':
-          measurements.loudDb = percentile(collected, 0.7);
-          break;
-        case 'low':
-          measurements.lowHz = percentile(collected, 0.5);
-          break;
-        case 'high':
-          measurements.highHz = percentile(collected, 0.5);
-          break;
-      }
-
-      stepIndex++;
-      if (stepIndex < STEPS.length) {
-        startStep();
-        return;
-      }
-      complete(measurements);
-    };
-
     startStep();
 
-    return startLoop((dt) => {
-      const frame = readFrame();
-      const step = STEPS[stepIndex];
+    stopRendering = startLoop((dt) => {
+      const frame = read();
+      const step = steps[stepIndex];
       elapsed += dt;
 
       meterFill.style.width = `${Math.round(Math.min(1, frame.level) * 100)}%`;
@@ -160,19 +176,25 @@ export function calibrateScreen(root: HTMLElement): Cleanup {
         return;
       }
 
-      if (step.usable(frame, measurements.noiseFloorDb)) {
-        collected.push(sampleFor(step, frame));
-      }
+      if (step.usable(frame, measurements)) collected.push(step.sample(frame));
 
       const gathered = collected.length * dt;
       progressFill.style.width = `${Math.round(Math.min(1, gathered / step.needed) * 100)}%`;
-      detail.textContent = describe(step, frame);
+      detail.textContent = step.describe(frame);
 
       if (gathered >= step.needed) {
-        finishStep();
+        measurements[step.id] = percentile(collected, step.percentile);
+        stepIndex++;
+        if (stepIndex < steps.length) {
+          startStep();
+          return;
+        }
+        stopRendering?.();
+        stopRendering = null;
+        onComplete();
       } else if (elapsed > step.timeout + LEAD_IN) {
         instruction.textContent =
-          step.id === 'silence'
+          step.id === 'noiseFloorDb'
             ? 'Something went wrong reading the microphone.'
             : "Couldn't hear that clearly. Try getting a little closer to the microphone.";
         retry.style.display = '';
@@ -181,44 +203,85 @@ export function calibrateScreen(root: HTMLElement): Cleanup {
     });
   }
 
-  function complete(measurements: {
-    noiseFloorDb: number;
-    loudDb: number;
-    lowHz: number;
-    highHz: number;
-  }): void {
-    stopRendering?.();
-    stopRendering = null;
+  /** Persist what's measured so far, keeping any pitch range already on file. */
+  function persist(pitchRange: PitchRange | null): CalibrationProfile {
+    const profile: CalibrationProfile = {
+      version: 2,
+      noiseFloorDb: measurements.noiseFloorDb,
+      // A ceiling below the floor would make every sound read as full volume.
+      loudDb: Math.max(measurements.loudDb, measurements.noiseFloorDb + 10),
+      pitchRange,
+      createdAt: Date.now(),
+    };
+    saveProfile(profile);
+    refreshProfile();
+    return profile;
+  }
 
+  function finishRoom(): void {
+    // Saved before the choice, not after — walking away here should still leave
+    // the room measured rather than throwing the work away.
+    const existing = loadProfile()?.pitchRange ?? null;
+    persist(existing);
+    showChoice(existing);
+  }
+
+  function showChoice(existing: PitchRange | null): void {
+    const start = el('button', {
+      class: 'btn-primary',
+      text: existing ? 'Redo the hum test' : 'Set up voice control',
+    });
+    start.addEventListener('click', () => runPhase(VOICE_STEPS, finishVoice));
+
+    const skip = el('button', { text: existing ? 'Keep what I have' : 'Skip for now' });
+    skip.addEventListener('click', () => showSummary(loadProfile()));
+
+    body.replaceChildren(
+      el('h1', { text: 'Room calibrated' }),
+      el('p', {
+        text: `Noise floor ${Math.round(measurements.noiseFloorDb)} dB. That's everything the music games need — they're unlocked now.`,
+      }),
+      el('p', {
+        class: 'hint',
+        text: 'Voice-controlled games also need your hum range: two more steps, about ten seconds.',
+      }),
+      start,
+      skip,
+    );
+  }
+
+  function finishVoice(): void {
     // Humming the "highest" note lower than the "lowest" is an easy mistake and
     // a pointless thing to fail someone over.
     const lowest = Math.min(measurements.lowHz, measurements.highHz);
     const highest = Math.max(measurements.lowHz, measurements.highHz);
-    const range = padPitchRange(lowest, highest);
+    showSummary(persist(padPitchRange(lowest, highest)));
+  }
 
-    saveProfile({
-      version: 1,
-      noiseFloorDb: measurements.noiseFloorDb,
-      loudDb: Math.max(measurements.loudDb, measurements.noiseFloorDb + 10),
-      lowHz: range.lowHz,
-      highHz: range.highHz,
-      createdAt: Date.now(),
-    });
-    refreshProfile();
+  function showSummary(profile: CalibrationProfile | null): void {
+    const range = profile?.pitchRange ?? null;
+    const actions: HTMLElement[] = [];
 
-    const low = hzToNote(range.lowHz);
-    const high = hzToNote(range.highHz);
-    const play = el('button', { class: 'btn-primary', text: 'Play Hum Flyer' });
-    play.addEventListener('click', () => navigate('hum-flyer'));
+    if (range) {
+      const play = el('button', { class: 'btn-primary', text: 'Play Hum Flyer' });
+      play.addEventListener('click', () => navigate('hum-flyer'));
+      actions.push(play);
+    } else {
+      const add = el('button', { class: 'btn-primary', text: 'Add voice control' });
+      add.addEventListener('click', () => runPhase(VOICE_STEPS, finishVoice));
+      actions.push(add);
+    }
+
+    const menu = el('button', { text: 'Back to games' });
+    menu.addEventListener('click', () => navigate(''));
     const again = el('button', { text: 'Calibrate again' });
     again.addEventListener('click', () => window.location.reload());
 
     body.replaceChildren(
       el('h1', { text: 'Calibrated' }),
-      el('p', {
-        text: `Your range: ${low.name}${low.octave} to ${high.name}${high.octave}. Room noise floor ${Math.round(measurements.noiseFloorDb)} dB.`,
-      }),
-      play,
+      el('p', { text: summaryText(profile, range) }),
+      ...actions,
+      menu,
       again,
       el('p', {
         class: 'hint',
@@ -235,14 +298,17 @@ export function calibrateScreen(root: HTMLElement): Cleanup {
   };
 }
 
-function sampleFor(step: Step, frame: Frame): number {
-  if (step.id === 'silence' || step.id === 'loud') return frame.db;
-  return frame.pitchHz ?? 0;
+function summaryText(profile: CalibrationProfile | null, range: PitchRange | null): string {
+  const floor = Math.round(profile?.noiseFloorDb ?? 0);
+  if (!range) {
+    return `Room noise floor ${floor} dB. Voice control is not set up, so games that need your pitch are still locked.`;
+  }
+  const low = hzToNote(range.lowHz);
+  const high = hzToNote(range.highHz);
+  return `Your range: ${low.name}${low.octave} to ${high.name}${high.octave}. Room noise floor ${floor} dB.`;
 }
 
-function describe(step: Step, frame: Frame): string {
-  if (step.id === 'silence') return `Room noise ${Math.round(frame.db)} dB`;
-  if (step.id === 'loud') return `${Math.round(frame.db)} dB`;
+function describePitch(frame: Frame): string {
   if (frame.pitchHz === null) return 'Listening for a hum…';
   const note = hzToNote(frame.pitchHz);
   return `${note.name}${note.octave} · ${Math.round(frame.pitchHz)} Hz`;

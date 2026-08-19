@@ -1,54 +1,57 @@
-import { isCalibrated, loadProfile } from '../engine/calibration';
+import { loadProfile } from '../engine/calibration';
 import { el, navigate, type Cleanup } from '../ui';
+import type { CalibrationProfile } from '../engine/types';
+
+/**
+ * What a game needs measured before it can run. Games declare it rather than
+ * checking themselves, so the menu can say *why* something is locked — see
+ * ADR-0004.
+ */
+type Requirement = 'room' | 'pitchRange';
 
 interface Entry {
   route: string;
   title: string;
   description: string;
-  /** Games that read a calibration profile are listed but held back until one
-   *  exists — see ADR-0003. */
-  needsCalibration?: boolean;
+  requires: Requirement | null;
 }
 
 const ENTRIES: Entry[] = [
   {
     route: 'calibrate',
     title: 'Calibrate',
-    description: 'Measure your room and your voice. Do this first, and again whenever you change device or room.',
+    description: 'Measure your room, and optionally your voice. Do this first, and again whenever you change device or room.',
+    requires: null,
   },
   {
     route: 'hum-flyer',
     title: 'Hum Flyer',
     description: 'Hum to fly. Higher note, higher flight. Thread the gaps.',
-    needsCalibration: true,
+    requires: 'pitchRange',
   },
   {
     route: 'scope',
     title: 'Signal scope',
     description: 'Live view of every detector. For tuning, and for working out why a game is misreading you.',
+    requires: null,
   },
 ];
 
 export function menuScreen(root: HTMLElement): Cleanup {
-  const calibrated = isCalibrated();
   const profile = loadProfile();
 
   const cards = ENTRIES.map((entry) => {
-    const locked = entry.needsCalibration === true && !calibrated;
+    const missing = unmetRequirement(entry.requires, profile);
     const card = el(
       'button',
-      { class: 'card', 'data-disabled': locked ? 'true' : 'false' },
+      { class: 'card', 'data-disabled': missing ? 'true' : 'false' },
       el('h2', { text: entry.title }),
       el('p', { text: entry.description }),
-      locked ? el('span', { class: 'tag', text: 'Calibrate first' }) : null,
+      missing ? el('span', { class: 'tag', text: missing }) : null,
     );
-    card.addEventListener('click', () => navigate(locked ? 'calibrate' : entry.route));
+    card.addEventListener('click', () => navigate(missing ? 'calibrate' : entry.route));
     return card;
   });
-
-  const status = profile
-    ? `Calibrated for ${Math.round(profile.lowHz)}–${Math.round(profile.highHz)} Hz.`
-    : 'Not calibrated yet.';
 
   root.appendChild(
     el(
@@ -60,7 +63,7 @@ export function menuScreen(root: HTMLElement): Cleanup {
         el('h1', { text: 'Sound Games' }),
         el('p', { text: 'Games you play with your voice. Headphones recommended.' }),
         ...cards,
-        el('p', { class: 'hint', text: status }),
+        el('p', { class: 'hint', text: statusText(profile) }),
       ),
     ),
   );
@@ -68,4 +71,24 @@ export function menuScreen(root: HTMLElement): Cleanup {
   return () => {
     root.replaceChildren();
   };
+}
+
+/** The label to show on a locked card, or null when the game is playable. */
+function unmetRequirement(
+  requires: Requirement | null,
+  profile: CalibrationProfile | null,
+): string | null {
+  if (requires === null) return null;
+  if (profile === null) return 'Calibrate first';
+  if (requires === 'pitchRange' && profile.pitchRange === null) return 'Needs voice setup';
+  return null;
+}
+
+function statusText(profile: CalibrationProfile | null): string {
+  if (!profile) return 'Not calibrated yet.';
+  if (!profile.pitchRange) {
+    return 'Room calibrated. Voice control not set up yet.';
+  }
+  const { lowHz, highHz } = profile.pitchRange;
+  return `Calibrated, with a voice range of ${Math.round(lowHz)}–${Math.round(highHz)} Hz.`;
 }

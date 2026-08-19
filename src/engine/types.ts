@@ -57,15 +57,25 @@ export interface Frame {
   bands: Bands;
 }
 
+/** The top and bottom of a player's comfortable hum, in Hz. */
+export interface PitchRange {
+  lowHz: number;
+  highHz: number;
+}
+
+/**
+ * What calibration measured. Split in two because the halves are earned
+ * separately: every game needs the room measurements, but only voice-controlled
+ * games need a pitch range, and making a music-game player hum first is a
+ * pointless toll. See ADR-0004.
+ */
 export interface CalibrationProfile {
   version: number;
   /** Measured dBFS of the player's silent room. */
   noiseFloorDb: number;
   /** Measured dBFS of the player making a comfortable sustained sound. */
   loudDb: number;
-  /** Bottom of the player's comfortable hum range, Hz. */
-  lowHz: number;
-  /** Top of the player's comfortable hum range, Hz. */
-  highHz: number;
+  /** null when the player skipped the voice-range steps. */
+  pitchRange: PitchRange | null;
   createdAt: number;
 }

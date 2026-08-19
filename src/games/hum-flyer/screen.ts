@@ -2,10 +2,10 @@ import { ensureMicSession, stopSession } from '../../engine/session';
 import { createSurface, startLoop, type Surface } from '../../engine/canvas';
 import { hzToNote } from '../../engine/pitch';
 import { el, navigate, overlay, topbar, type Cleanup } from '../../ui';
-import { isCalibrated } from '../../engine/calibration';
+import { DEFAULT_PITCH_RANGE, hasPitchRange } from '../../engine/calibration';
 import { HumFlyer, MELODIES, type Gate } from './game';
 import type { Analyser } from '../../engine/analyser';
-import type { CalibrationProfile } from '../../engine/types';
+import type { PitchRange } from '../../engine/types';
 
 /** Fraction of the screen width the flyer sits at. */
 const FLYER_X = 0.28;
@@ -19,7 +19,9 @@ const VISIBLE_WORLD = 2.4;
 const BAND_MARGIN = 0.08;
 
 export function humFlyerScreen(root: HTMLElement): Cleanup {
-  if (!isCalibrated()) {
+  // Without a measured hum range there is no sensible way to map pitch to
+  // altitude, so send the player to set one up rather than guessing.
+  if (!hasPitchRange()) {
     navigate('calibrate');
     return () => {};
   }
@@ -67,7 +69,7 @@ export function humFlyerScreen(root: HTMLElement): Cleanup {
     const stop = startLoop((dt) => {
       const frame = analyser.read();
       game.update(dt, frame);
-      render(target, game, analyser.profile, frame.pitchNorm);
+      render(target, game, analyser.profile.pitchRange ?? DEFAULT_PITCH_RANGE, frame.pitchNorm);
     });
 
     return () => {
@@ -88,7 +90,7 @@ export function humFlyerScreen(root: HTMLElement): Cleanup {
 function render(
   surface: Surface,
   game: HumFlyer,
-  profile: CalibrationProfile,
+  range: PitchRange,
   pitchNorm: number | null,
 ): void {
   const { ctx, width, height } = surface;
@@ -109,7 +111,7 @@ function render(
 
   drawPitchGuide(ctx, pitchNorm, width, toY);
   drawFlyer(ctx, game, flyerX, toY, surface);
-  drawHud(ctx, game, profile, width);
+  drawHud(ctx, game, range, width);
 
   if (game.phase === 'ready') {
     banner(ctx, width, height, 'Hum to take off', `Gaps follow "${game.melody.name}"`);
@@ -219,7 +221,7 @@ function drawFlyer(
 function drawHud(
   ctx: CanvasRenderingContext2D,
   game: HumFlyer,
-  profile: CalibrationProfile,
+  range: PitchRange,
   width: number,
 ): void {
   ctx.save();
@@ -232,15 +234,15 @@ function drawHud(
     ctx.fillStyle = '#8fa3b8';
     ctx.font = '13px ui-sans-serif, system-ui, sans-serif';
     ctx.textAlign = 'right';
-    ctx.fillText(`next: ${noteForCentre(next.centre, profile)}`, width - 14, 30);
+    ctx.fillText(`next: ${noteForCentre(next.centre, range)}`, width - 14, 30);
   }
   ctx.restore();
 }
 
 /** The note a gap sits at, so the player can learn the tune by name. */
-function noteForCentre(centre: number, profile: CalibrationProfile): string {
-  const span = Math.log2(profile.highHz / profile.lowHz);
-  const hz = profile.lowHz * Math.pow(2, centre * span);
+function noteForCentre(centre: number, range: PitchRange): string {
+  const span = Math.log2(range.highHz / range.lowHz);
+  const hz = range.lowHz * Math.pow(2, centre * span);
   const note = hzToNote(hz);
   return `${note.name}${note.octave}`;
 }

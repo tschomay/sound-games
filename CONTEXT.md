@@ -22,6 +22,13 @@ backlog and `docs/adr/` for decisions.
 - **Voiced** — the player is producing a sustained tone with a findable
   fundamental, as opposed to noise or silence.
 - **Calibration profile** — a player's measured noise floor, loudness ceiling and
-  pitch range, persisted locally, against which all detector output is normalised
-  (ADR-0003).
+  (optionally) pitch range, persisted locally, against which all detector output
+  is normalised (ADR-0003). Comes in two halves — see **room** and **pitch
+  range** — because only the first is needed by every game (ADR-0004).
+- **Room** — the half of a calibration profile every game needs: noise floor and
+  comfortable loudness. Measured first and saved on its own.
+- **Pitch range** — the half only voice-controlled games need: the top and bottom
+  of the player's comfortable hum. May be absent from a profile.
+- **Requirement** — what a game declares it needs calibrated (`room` or
+  `pitchRange`) before it can be played.
 - **Round** — one play session of a game, start to game-over.
