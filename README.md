@@ -67,8 +67,6 @@ Hosted on Vercel as the `sound-games` project (Vite preset, `npm run build` to
 `dist/`). Hash routing means no rewrite rules are needed — routes never reach the
 server.
 
-The project is not yet linked to the GitHub repository, so pushes do **not**
-deploy automatically. To turn that on, install the
-[Vercel GitHub App](https://github.com/apps/vercel) on `tschomay/sound-games`
-and connect the repo to the existing project; after that, `main` deploys to
-production and branches get preview URLs.
+The project is linked to this GitHub repository, so deploys are automatic:
+pushes to `main` go to production, and every other branch gets its own preview
+URL.
