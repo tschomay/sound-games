@@ -2,17 +2,26 @@ import './styles.css';
 import { menuScreen } from './screens/menu';
 import { calibrateScreen, voiceSetupScreen } from './screens/calibrate';
 import { scopeScreen } from './screens/scope';
-import { humFlyerScreen } from './games/hum-flyer/screen';
+import { playScreen } from './screens/play';
+import { findGame } from './games/registry';
 import { stopSession } from './engine/session';
 import type { Screen } from './ui';
 
-const ROUTES: Record<string, Screen> = {
+/** Routes that are not games. Games come from the registry, keyed by id. */
+const SCREENS: Record<string, Screen> = {
   '': menuScreen,
   calibrate: calibrateScreen,
   'voice-setup': voiceSetupScreen,
   scope: scopeScreen,
-  'hum-flyer': humFlyerScreen,
 };
+
+function screenFor(route: string): Screen {
+  const fixed = SCREENS[route];
+  if (fixed) return fixed;
+  const game = findGame(route);
+  if (game) return (root) => playScreen(root, game);
+  return menuScreen;
+}
 
 const container = document.getElementById('app');
 if (!container) throw new Error('#app is missing from the document.');
@@ -23,10 +32,7 @@ let teardown: (() => void) | null = null;
 function render(): void {
   teardown?.();
   root.replaceChildren();
-
-  const route = window.location.hash.replace(/^#\/?/, '');
-  const screen = ROUTES[route] ?? menuScreen;
-  teardown = screen(root);
+  teardown = screenFor(window.location.hash.replace(/^#\/?/, ''))(root);
 }
 
 window.addEventListener('hashchange', render);

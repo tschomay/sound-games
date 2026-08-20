@@ -42,13 +42,22 @@ src/
 │   ├── pitch.ts      fundamental frequency (NSDF autocorrelation)
 │   ├── onset.ts      transient detection (spectral flux)
 │   ├── analyser.ts   assembles one Frame per animation frame
-│   └── calibration.ts
-├── screens/          calibrate, signal scope, menu
+│   ├── calibration.ts
+│   ├── game.ts       the contract every game implements
+│   └── scores.ts     best score per game
+├── screens/
+│   ├── play.ts       the shell every game is played inside
+│   ├── calibrate.ts  full flow, and the voice-only entry point
+│   ├── menu.ts
+│   └── scope.ts
 └── games/
-    └── hum-flyer/    game.ts is pure rules; screen.ts draws and wires audio
+    ├── registry.ts   the menu and router are both built from this
+    └── hum-flyer/    game.ts is pure rules; index.ts is the definition
 ```
 
-Game rules live in plain modules that take numbers in and have no idea a
+A game implements `update(dt, frame)` and `render(surface)` and nothing else —
+the shell owns the microphone, the canvas, the frame loop, pausing, restarts and
+scores. Game rules live in plain modules that take numbers in and have no idea a
 microphone exists, which is why they can be tested without one.
 
 ## Design notes

@@ -1,49 +1,32 @@
 import { loadProfile } from '../engine/calibration';
+import { bestScore } from '../engine/scores';
+import { GAMES } from '../games/registry';
 import { el, navigate, type Cleanup } from '../ui';
 import type { CalibrationProfile } from '../engine/types';
+import type { GameDefinition, Requirement } from '../engine/game';
 
-/**
- * What a game needs measured before it can run. Games declare it rather than
- * checking themselves, so the menu can say *why* something is locked — see
- * ADR-0004.
- */
-type Requirement = 'room' | 'pitchRange';
-
-interface Entry {
-  route: string;
-  title: string;
-  description: string;
-  requires: Requirement | null;
-}
-
-const ENTRIES: Entry[] = [
-  {
-    route: 'hum-flyer',
-    title: 'Hum Flyer',
-    description: 'Hum to fly. Higher note, higher flight. Thread the gaps.',
-    requires: 'pitchRange',
-  },
+/** The scope is a tool rather than a game, so it is listed separately. */
+const TOOLS = [
   {
     route: 'scope',
     title: 'Signal scope',
-    description: 'Live view of every detector. For tuning, and for working out why a game is misreading you.',
-    requires: null,
+    description:
+      'Live view of every detector. For tuning, and for working out why a game is misreading you.',
   },
 ];
 
 export function menuScreen(root: HTMLElement): Cleanup {
   const profile = loadProfile();
 
-  const cards = ENTRIES.map((entry) => {
-    const missing = unmetRequirement(entry.requires, profile);
+  const cards = GAMES.map((game) => gameCard(game, profile));
+  const tools = TOOLS.map((tool) => {
     const card = el(
       'button',
-      { class: 'card', 'data-disabled': missing ? 'true' : 'false' },
-      el('h2', { text: entry.title }),
-      el('p', { text: entry.description }),
-      missing ? el('span', { class: 'tag', text: missing }) : null,
+      { class: 'card' },
+      el('h2', { text: tool.title }),
+      el('p', { text: tool.description }),
     );
-    card.addEventListener('click', () => navigate(missing ? 'calibrate' : entry.route));
+    card.addEventListener('click', () => navigate(tool.route));
     return card;
   });
 
@@ -58,6 +41,7 @@ export function menuScreen(root: HTMLElement): Cleanup {
         el('p', { text: 'Games you play with your voice. Headphones recommended.' }),
         setupPanel(profile),
         ...cards,
+        ...tools,
       ),
     ),
   );
@@ -65,6 +49,28 @@ export function menuScreen(root: HTMLElement): Cleanup {
   return () => {
     root.replaceChildren();
   };
+}
+
+function gameCard(game: GameDefinition, profile: CalibrationProfile | null): HTMLElement {
+  const missing = unmetRequirement(game.requires, profile);
+  const best = bestScore(game.id);
+  const card = el(
+    'button',
+    { class: 'card', 'data-disabled': missing ? 'true' : 'false' },
+    el('h2', { text: game.title }),
+    el('p', { text: game.description }),
+    missing
+      ? el('span', { class: 'tag', text: missing })
+      : best > 0
+        ? el('span', { class: 'tag tag--ready', text: `Best: ${game.formatScore(best)}` })
+        : null,
+  );
+  // A locked game sends you to the step it is waiting on, not to the top of a
+  // flow you have already done.
+  card.addEventListener('click', () =>
+    navigate(missing ? (profile ? 'voice-setup' : 'calibrate') : game.id),
+  );
+  return card;
 }
 
 /** The label to show on a locked card, or null when the game is playable. */

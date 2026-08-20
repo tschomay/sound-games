@@ -1,11 +1,14 @@
-import { ensureMicSession, stopSession } from '../../engine/session';
-import { createSurface, startLoop, type Surface } from '../../engine/canvas';
+/**
+ * Hum Flyer as the shell sees it: a definition, and a Game that owns only its
+ * rules and its picture. Everything around it — microphone, canvas, loop,
+ * pausing, results, high scores — belongs to `screens/play.ts`.
+ */
 import { hzToNote } from '../../engine/pitch';
-import { el, navigate, overlay, topbar, type Cleanup } from '../../ui';
-import { DEFAULT_PITCH_RANGE, hasPitchRange } from '../../engine/calibration';
+import { DEFAULT_PITCH_RANGE } from '../../engine/calibration';
 import { HumFlyer, MELODIES, type Gate } from './game';
-import type { Analyser } from '../../engine/analyser';
-import type { PitchRange } from '../../engine/types';
+import type { Game, GameDefinition } from '../../engine/game';
+import type { Surface } from '../../engine/canvas';
+import type { CalibrationProfile, Frame, PitchRange } from '../../engine/types';
 
 /** Fraction of the screen width the flyer sits at. */
 const FLYER_X = 0.28;
@@ -18,74 +21,53 @@ const VISIBLE_WORLD = 2.4;
 /** Vertical padding so the flyer never touches the very edge of the canvas. */
 const BAND_MARGIN = 0.08;
 
-export function humFlyerScreen(root: HTMLElement): Cleanup {
-  // Without a measured hum range there is no sensible way to map pitch to
-  // altitude, so send the player to set one up rather than guessing.
-  if (!hasPitchRange()) {
-    navigate('calibrate');
-    return () => {};
+class HumFlyerGame implements Game {
+  private readonly rules: HumFlyer;
+  private pitchNorm: number | null = null;
+
+  constructor(private readonly range: PitchRange) {
+    this.rules = new HumFlyer(undefined, Math.floor(Math.random() * MELODIES.length));
   }
 
-  const stage = el('div', { class: 'stage' });
-  const melodyIndex = Math.floor(Math.random() * MELODIES.length);
-  const game = new HumFlyer(undefined, melodyIndex);
-
-  root.appendChild(el('div', { class: 'screen' }, topbar(`Hum Flyer · ${game.melody.name}`), stage));
-
-  let stopRendering: (() => void) | null = null;
-  let surface: Surface | null = null;
-  let disposed = false;
-
-  const gate = overlay(
-    `Hum to fly — the higher your note, the higher you fly. The gaps trace "${game.melody.name}".`,
-    'Open microphone',
-    () => void begin(),
-    'Stop humming and you fall. Headphones recommended.',
-  );
-  stage.appendChild(gate.root);
-
-  async function begin(): Promise<void> {
-    gate.setBusy(true);
-    try {
-      const session = await ensureMicSession();
-      if (disposed) return;
-      gate.root.remove();
-      surface = createSurface(stage);
-      stopRendering = run(session.analyser, surface);
-    } catch (error) {
-      gate.showError(error instanceof Error ? error.message : 'Could not open the microphone.');
-    }
+  get phase() {
+    return this.rules.phase;
   }
 
-  function run(analyser: Analyser, target: Surface): () => void {
-    // Tapping to restart is the one place a touch beats a voice: after a crash
-    // you want a beat of silence to collect yourself, not an instant relaunch
-    // triggered by your own sigh.
-    const restart = (): void => {
-      if (game.phase === 'crashed') game.reset();
-    };
-    target.canvas.addEventListener('pointerdown', restart);
-
-    const stop = startLoop((dt) => {
-      const frame = analyser.read();
-      game.update(dt, frame);
-      render(target, game, analyser.profile.pitchRange ?? DEFAULT_PITCH_RANGE, frame.pitchNorm);
-    });
-
-    return () => {
-      target.canvas.removeEventListener('pointerdown', restart);
-      stop();
-    };
+  get score(): number {
+    return this.rules.score;
   }
 
-  return () => {
-    disposed = true;
-    stopRendering?.();
-    surface?.dispose();
-    stopSession();
-    root.replaceChildren();
-  };
+  get readyHint(): string {
+    return `Gaps follow "${this.rules.melody.name}"`;
+  }
+
+  update(dt: number, frame: Frame): void {
+    this.pitchNorm = frame.pitchNorm;
+    this.rules.update(dt, frame);
+  }
+
+  reset(): void {
+    this.rules.reset();
+  }
+
+  render(surface: Surface): void {
+    render(surface, this.rules, this.range, this.pitchNorm);
+  }
 }
+
+export const humFlyer: GameDefinition = {
+  id: 'hum-flyer',
+  title: 'Hum Flyer',
+  description: 'Hum to fly. Higher note, higher flight. Thread the gaps.',
+  requires: 'pitchRange',
+  sources: ['mic'],
+  intro: 'Hum to fly — the higher your note, the higher you fly. The gaps trace a melody.',
+  introDetail: 'Stop humming and you fall. Headphones recommended.',
+  readyPrompt: 'Hum to take off',
+  formatScore: (score) => `${score} ${score === 1 ? 'gate' : 'gates'}`,
+  create: (profile: CalibrationProfile) =>
+    new HumFlyerGame(profile.pitchRange ?? DEFAULT_PITCH_RANGE),
+};
 
 function render(
   surface: Surface,
@@ -104,26 +86,12 @@ function render(
   ctx.fillRect(0, 0, width, height);
 
   drawMelodyLine(ctx, game, flyerX, worldScale, toY);
-
   for (const gate of game.gates) {
     drawGate(ctx, gate, game, flyerX, worldScale, toY, height, width);
   }
-
   drawPitchGuide(ctx, pitchNorm, width, toY);
   drawFlyer(ctx, game, flyerX, toY, surface);
   drawHud(ctx, game, range, width);
-
-  if (game.phase === 'ready') {
-    banner(ctx, width, height, 'Hum to take off', `Gaps follow "${game.melody.name}"`);
-  } else if (game.phase === 'crashed') {
-    banner(
-      ctx,
-      width,
-      height,
-      `${game.score} ${game.score === 1 ? 'gate' : 'gates'}`,
-      'Tap to fly again',
-    );
-  }
 }
 
 function drawMelodyLine(
@@ -212,7 +180,7 @@ function drawFlyer(
     ctx.fill();
   }
 
-  ctx.fillStyle = game.phase === 'crashed' ? '#f87171' : '#4ade80';
+  ctx.fillStyle = game.phase === 'over' ? '#f87171' : '#4ade80';
   ctx.beginPath();
   ctx.arc(flyerX, y, radius, 0, Math.PI * 2);
   ctx.fill();
@@ -245,24 +213,4 @@ function noteForCentre(centre: number, range: PitchRange): string {
   const hz = range.lowHz * Math.pow(2, centre * span);
   const note = hzToNote(hz);
   return `${note.name}${note.octave}`;
-}
-
-function banner(
-  ctx: CanvasRenderingContext2D,
-  width: number,
-  height: number,
-  title: string,
-  subtitle: string,
-): void {
-  ctx.save();
-  ctx.fillStyle = 'rgba(11, 15, 20, 0.72)';
-  ctx.fillRect(0, height / 2 - 62, width, 124);
-  ctx.textAlign = 'center';
-  ctx.fillStyle = '#e8eef6';
-  ctx.font = '650 26px ui-sans-serif, system-ui, sans-serif';
-  ctx.fillText(title, width / 2, height / 2 - 6);
-  ctx.fillStyle = '#8fa3b8';
-  ctx.font = '15px ui-sans-serif, system-ui, sans-serif';
-  ctx.fillText(subtitle, width / 2, height / 2 + 24);
-  ctx.restore();
 }

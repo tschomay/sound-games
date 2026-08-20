@@ -21,7 +21,7 @@ calibration flow, the signal scope, and Hum Flyer. Deployed, tested, and live.
 
 ---
 
-## Phase 1 — The game shell
+## Phase 1 — The game shell — **shipped**
 
 **Why first:** every remaining game needs the same furniture, and building it
 once is the difference between eight games and eight variations on a prototype.
@@ -40,10 +40,19 @@ its own game-over banner, none of which is reusable.
 - Hum Flyer refactored onto it, as proof the interface fits a real game.
 
 **Done when** Hum Flyer has lost its bespoke lifecycle code and a new game can be
-added by writing one file and registering it.
+added by writing one file and registering it. ✅
 
-**Risk:** low. The main trap is over-designing the interface against one example
-— hence refactoring Hum Flyer onto it immediately.
+**What actually shipped:** `engine/game.ts` (the `Game` / `GameDefinition`
+contract), `engine/scores.ts` (best score per game), `screens/play.ts` (the
+shell), and `games/registry.ts`, which both the menu and the router are now built
+from. Hum Flyer lost its microphone gate, canvas handling, render loop, restart
+wiring and on-canvas banners, and is now a definition plus rules plus a `render`.
+Round phases are one shared vocabulary — `ready` / `playing` / `over` — rather
+than each game inventing its own.
+
+Pausing turned out to matter more than expected: a backgrounded tab receives no
+microphone audio, so before this a round left running while the player was
+elsewhere would quietly fail on their behalf.
 
 ---
 
