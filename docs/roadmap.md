@@ -428,12 +428,15 @@ original brief also asked for ("games declaring which sources they support,
 and the menu explaining the difference") is still deferred: with no game yet
 declaring `'file'`, there is nothing concrete for that copy to explain, so it
 was not speculatively written. Revisit it when the first file-capable game
-ships (Phase 7 at the earliest, since Phase 7's Ecosystem Garden is
-mic-only).
+ships — Phase 7's Ecosystem Garden, as it turned out, not mic-only after all
+(see Phase 7 below): `screens/menu.ts`'s game cards still say nothing about
+which sources a game supports, so that specific piece of Phase 6's original
+brief remains open even after Phase 7, carried forward rather than silently
+dropped.
 
 ---
 
-## Phase 7 — The beat-free music game
+## Phase 7 — The beat-free music game — **shipped**
 
 **Ships: B3 Ecosystem Garden.** Bass drives growth, mids spawn creatures, highs
 are weather.
@@ -443,10 +446,82 @@ microphone with no beat tracking at all. That makes it the most robust category 
 game and the right one to ship while beat tracking is still being tuned.
 
 **Done when** a phone left listening to a room for a whole album produces a
-garden worth looking at, without leaking memory or draining the battery.
+garden worth looking at, without leaking memory or draining the battery. ⚠️
+Partially verified — see "what actually shipped" below for exactly what is,
+and isn't, checked. The mechanics, the management loop, memory boundedness,
+and the file-source path are all verified; the literal "phone left listening
+for a whole album" scenario needs a real device and real elapsed time, which
+nothing in this sandboxed environment can provide.
 
 **Risk:** low technically, medium as a design. It is the idea most at risk of
 being pretty rather than fun, so give it a real management loop early or cut it.
+
+**What actually shipped:** `games/ecosystem-garden/` — `game.ts` is pure
+rules (`EcosystemGarden`, unit-tested the same way every other game's rules
+are), `index.ts` is the `GameDefinition` plus a `render`. Only `Frame.level`
+and `Frame.bands` are read, exactly as scoped — no onset, no pitch, no
+timbre. The management loop the phase's risk note demanded: **bass** grows a
+single `growth` scalar 0..1 (capped, never a stored array — see below);
+**mids** spawn **creatures**, a capped array (`maxCreatures`, default 24)
+that also pollinate (a small growth-rate bonus per living creature, the
+"maybe they help" option from the brief); **highs**, smoothed, drive
+transient `weather` (`'sun' | 'wind' | 'rain'`) that in turn nudges growth
+and spawn rates while active and clears the moment the highs do; and a
+**sustained loud passage** (`level` held above `predatorThreshold`) builds
+pressure toward spawning a **predator** — a capped array (`maxPredators`,
+default 6) — whose `aggression`, and therefore its health drain, escalates
+the longer it goes unmanaged. The player's only tool is loudness itself, per
+the brief: a **rising edge on `level` crossing `scareThreshold`** (a shout, a
+clap-like spike) sends every active predator into a `fleeing` countdown,
+after which it despawns and pays a score bonus — the exact same
+threshold-crossing-on-`level` pattern `QuietGame` already uses for its
+shout, aimed at a different consequence here. Garden `health` hits 0 →
+`phase = 'over'`, a real loss; `score` accumulates every playing second,
+scaled by current health (a neglected, half-dead garden earns less than a
+thriving one) plus a flat bonus per predator actually repelled, so managing
+predators is what the score rewards, not just idle survival time.
+`formatScore` reads `"N garden points"`. A round starts once there's
+sustained sound at all (`level` above a low presence threshold for a beat)
+— the same "start on your first sound" precedent every prior game uses,
+generalised to the one signal this game is allowed to read. **Bounded
+memory, concretely:** plants are not a stored array at all — `growth` is one
+scalar, and how many of `config.plantSlots` (a fixed number) are in bloom,
+and how tall, is a pure function of that scalar recomputed by the render
+every frame, so there is no plant state to leak over a multi-minute session.
+Creatures and predators are the only two arrays that hold per-individual
+state (they move), and both are hard-capped — new spawns are dropped once a
+cap is hit rather than queued, a "carrying capacity," not a queue — so
+neither array's length can grow without bound regardless of session length
+or how loud the input stays. A unit test (`__tests__/game.test.ts`) drives 5
+simulated minutes of alternating loud/scare input specifically to check both
+arrays stay at or under their caps through real churn, not just steady
+state. Rendering is native canvas draws (arcs, lines, gradients) with no
+per-pixel work and no allocation scaled by session length, matching every
+prior game's performance precedent.
+
+**This is also the first game to declare `sources: ['mic', 'file']`,**
+exercising Phase 6's source-picker/transport plumbing from inside a real
+round for the first time. That was verified by actually driving it — headless
+Chromium against a running `vite dev`, a synthetic multi-segment WAV
+(bass → mid → high → sustained loud → a scare burst → silence) picked
+through the real "Choose a file" control, with a calibration profile
+pre-seeded into `localStorage` to skip the separately-shipped calibration
+screen. Confirmed live: the gate offers both mic and file for this game
+specifically; picking a file decodes and reaches a playable round with zero
+console errors; the transport bar's play/pause and scrub genuinely work
+against a live round (pausing freezes the input at silence without stopping
+the round's own clock — the garden just has nothing to react to, same as a
+quiet room); and the whole management loop — growth, a creature spawn,
+predators escalating health drain, and a scripted scare burst clearing them
+and paying its score bonus — ran correctly end-to-end on real decoded audio.
+No shell code needed to change. Full detail, plus one real finding about
+`level` being broadband-loudness-independent-of-band (a single loud pure
+tone reads as "loud" the same as a loud noise burst — correct, but a
+synthetic single-tone test fixture is a worse stand-in for "quiet music"
+than a multi-tone or broadband one), is in ADR-0012, which also resolves
+ADR-0009's open question about whether the transport bar should hide itself
+during play: for this game, no — an ambient session is exactly the case
+where pausing the room or scrubbing an album is a feature.
 
 ---
 

@@ -146,7 +146,7 @@ Wave structure derived from song structure; the drop is a boss wave.
 - **Platform:** desktop-friendly, mobile-playable
 - **Risk:** medium — section detection is the hard part.
 
-## B3. Ecosystem Garden — `planned`
+## B3. Ecosystem Garden — `built`
 
 Bass drives growth, mids spawn creatures, highs are weather. Loud passages spawn
 predators. Playlist-length sessions while you tend the thing.
