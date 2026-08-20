@@ -136,7 +136,7 @@ like Hum Flyer.
 
 ---
 
-## Phase 4 — Onset games
+## Phase 4 — Onset games — **shipped**
 
 **Ships: A4 Sonar Maze**, then **A2 Clap Runner**.
 
@@ -147,7 +147,10 @@ tone* (a held "aaah"), using zero-crossing rate and spectral flatness. That
 classifier is the phase's real work; the runner is the thing that proves it.
 
 **Done when** the transient/sustain classifier holds up across at least three
-devices, checked in the scope.
+devices, checked in the scope. ⚠️ Partially verified — see "what actually
+shipped" below: unit tests against synthetic signals pass, but the
+three-device check itself could not be performed in this sandboxed
+environment. That is the one open item carried out of this phase.
 
 **Risk:** medium. Clap detection is reliable; *distinguishing* two kinds of vocal
 sound is where this could disappoint. Build the classifier readout into the scope
@@ -177,6 +180,55 @@ ADR-0006 for why that's a deliberate, scoped exception to "voice as
 controller" rather than a change to the project's general lean. Rendering
 stays to native canvas arcs, gradients and rects — no per-pixel work — per the
 risk note above.
+
+**Clap Runner shipped:** the phase's real work — `Frame` gained `zcr` (zero-
+crossing rate, normalised as a fraction of adjacent samples that flip sign
+rather than crossings-per-second, specifically so the number means the same
+thing on a 44.1kHz and a 48kHz device) and `timbreClass`, a `'silence' |
+'transient' | 'tonal' | 'noisy'` read from a new `TimbreClassifier`
+(`engine/timbre-class.ts`) that combines `zcr` with the existing `flatness`.
+`onset.ts` and `pitch.ts` are untouched, matching Phase 2/A4 precedent — see
+ADR-0007 for the full design, including why both features have to agree
+before the classifier commits to "tonal" or "noisy," and why an ambiguous
+frame holds the last sustained read instead of picking a side (the entire
+hysteresis mechanism, and the direct answer to this phase's own risk note
+about flicker). `screens/scope.ts` got `ZCR` and `Timbre class` readout cells
+before Clap Runner was built, per the cross-cutting rule this phase's brief
+quotes directly. On top of that, `games/clap-runner/` is an auto-runner
+reading three independent verbs off one classifier: a clap (`onset`, as
+before — Clap Runner reuses the existing detector for this, the classifier's
+own burst detection exists mainly to distinguish a decayed-away clap from a
+sustained shout) starts a fixed-duration jump arc, and a low obstacle only
+clears if its zone falls inside the arc's above-clearance window — genuine
+timing skill, not a flag check. A held `timbreClass === 'tonal'` glides across
+a gap for as long as it's held, straight off the classifier with no game-side
+state of its own. A shout — `timbreClass === 'noisy'` *and* `level` above a
+config threshold, a game-level call kept out of the shared classifier on
+purpose (ADR-0007) — ground-pounds through a breakable obstacle. Every
+obstacle fails hard the instant you're in its zone in the wrong state, closer
+to Sonar Maze's wall than Quiet Game's forgiving guard meter, which fits a
+runner where touching the wrong thing is supposed to just be over. No game
+audio: like Sonar Maze, Clap Runner ships with no SFX, so ADR-0005's gating
+path is wired (`timbreClass` gets forced to `'silence'` on a gated frame, same
+as `onset`) but still unexercised by any real game.
+
+**What actually shipped versus what's still open:** the classifier's *logic*
+is unit-tested against synthetic signals — a clean sine wave reads as low
+zero-crossing rate, a deterministic noise burst reads as high, and
+`TimbreClassifier` is tested directly against representative feature values
+covering silence, a clean tone, a brief burst promoted to sustained noise
+after its hold window, the onset short-circuit, and the no-flicker-on-an-
+ambiguous-frame case. `ClapRunner`'s rules are tested the same way every
+other game's rules are — pure numbers in, no microphone. None of that is what
+the phase's own "done when" asks for, though: **the three-device check could
+not be performed in this sandboxed environment**, so the default thresholds
+in `DEFAULT_TIMBRE_THRESHOLDS` are reasoned from first principles (how
+zero-crossing rate scales with voiced-frequency content versus broadband
+noise), not measured on a laptop, a phone, and headphones the way the
+roadmap's "calibrate on real variance" item calls for. That is this phase's
+one open item, and ADR-0007 names the most likely failure mode (a phone
+mic's AGC or a noisy room pushing a clean "aaah"'s flatness up toward the
+noisy band) and which numbers to loosen first if real hardware disagrees.
 
 ---
 
@@ -311,6 +363,8 @@ friend understand what to do without being told.
 | 9 | PWA, latency, a11y | shipping it as an app |
 
 **Shortest path to a varied, complete-feeling app:** phases 1 → 2 → 3 → 4. That
-is four voice games on a shared shell, using only detectors that already exist
-and are already tested. Category B is a bigger bet, and Phase 6 is where it is
-won or lost.
+is four voice games on a shared shell. Phases 1–3 and the first half of Phase 4
+use only detectors that already existed going in; Phase 4's second half adds
+one more (the transient/sustain classifier), tested the same way — pure
+numbers in, no microphone — but not yet checked against real hardware
+variance. Category B is a bigger bet, and Phase 6 is where it is won or lost.

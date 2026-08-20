@@ -41,7 +41,7 @@ playing well means singing a real tune.
   few cents of frame-to-frame jitter without feeling like the flyer is on
   elastic.
 
-## A2. Clap Runner — `planned`
+## A2. Clap Runner — `built`
 
 Auto-runner. Clap = jump, sustained "aaah" = glide, shout = ground-pound.
 

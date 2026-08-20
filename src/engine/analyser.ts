@@ -4,6 +4,7 @@
  */
 import { OnsetDetector } from './onset';
 import { PitchDetector } from './pitch';
+import { TimbreClassifier } from './timbre-class';
 import {
   DEFAULT_PITCH_RANGE,
   DEFAULT_PROFILE,
@@ -47,6 +48,7 @@ export class Analyser {
   private readonly magnitudes: Float32Array<ArrayBuffer>;
   private readonly pitchDetector: PitchDetector;
   private readonly onsetDetector: OnsetDetector;
+  private readonly timbreClassifier = new TimbreClassifier();
   private readonly suppression?: SuppressionSource;
   private readonly startedAt: number;
   private lastT = 0;
@@ -107,6 +109,14 @@ export class Analyser {
     const onset = this.onsetDetector.process(this.spectrum, t);
     this.toMagnitudes();
 
+    const flatness = this.flatness();
+    const zcr = zeroCrossingRate(this.timeDomain);
+    // Fed the raw (un-frozen) level and the real onset flag every frame, same
+    // reasoning as the onset detector above: its own hysteresis state should
+    // track what actually happened, not what the frame reports after gating.
+    // Only the returned classification is suppressed to 'silence'.
+    const timbreClass = this.timbreClassifier.classify(zcr, flatness, rawLevel, onset.onset);
+
     return {
       t,
       dt,
@@ -125,7 +135,9 @@ export class Analyser {
       flux: onset.flux,
       onsetStrength: gated ? 0 : onset.strength,
       centroid: this.centroid(),
-      flatness: this.flatness(),
+      flatness,
+      zcr,
+      timbreClass: gated ? 'silence' : timbreClass,
       bands: this.bands(),
       gated,
     };
@@ -208,6 +220,21 @@ export function rms(samples: Float32Array): number {
   let sum = 0;
   for (let i = 0; i < samples.length; i++) sum += samples[i] * samples[i];
   return Math.sqrt(sum / samples.length);
+}
+
+/**
+ * Fraction of adjacent sample pairs whose sign flips, 0..1. Normalised per
+ * sample rather than per second so the same waveform reads the same
+ * regardless of a device's sample rate or this analyser's buffer size — see
+ * `Frame.zcr` and `engine/timbre-class.ts`.
+ */
+export function zeroCrossingRate(samples: Float32Array): number {
+  if (samples.length < 2) return 0;
+  let crossings = 0;
+  for (let i = 1; i < samples.length; i++) {
+    if (samples[i] >= 0 !== samples[i - 1] >= 0) crossings++;
+  }
+  return crossings / (samples.length - 1);
 }
 
 export function toDecibels(amplitude: number): number {

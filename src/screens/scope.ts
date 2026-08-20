@@ -24,6 +24,8 @@ export function scopeScreen(root: HTMLElement): Cleanup {
     clarity: readoutCell('Clarity'),
     centroid: readoutCell('Centroid'),
     flatness: readoutCell('Flatness'),
+    zcr: readoutCell('ZCR'),
+    timbreClass: readoutCell('Timbre class'),
     onsets: readoutCell('Onsets'),
     gated: readoutCell('Gated'),
   };
@@ -101,6 +103,8 @@ export function scopeScreen(root: HTMLElement): Cleanup {
       cells.clarity.set(frame.clarity.toFixed(2));
       cells.centroid.set(`${Math.round(frame.centroid)}`);
       cells.flatness.set(frame.flatness.toFixed(3));
+      cells.zcr.set(frame.zcr.toFixed(3));
+      cells.timbreClass.set(frame.timbreClass);
       cells.onsets.set(String(onsetCount));
       cells.gated.set(frame.gated ? 'yes' : 'no');
     });
