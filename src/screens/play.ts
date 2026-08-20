@@ -38,7 +38,7 @@ export function playScreen(root: HTMLElement, definition: GameDefinition): Clean
   /** The phase we last reacted to, so results are shown once per round. */
   let seenPhase = game.phase;
 
-  const gate = overlay(definition.intro, 'Open microphone', () => void begin(), definition.introDetail);
+  const gate = overlay(definition.intro, 'Open microphone', () => void begin(), gateDetail(definition));
   stage.appendChild(gate.root);
 
   const readyBanner = el(
@@ -171,6 +171,16 @@ function resultDetail(definition: GameDefinition, best: number, beaten: boolean)
   // A first round that scores nothing shouldn't be told its best is nothing.
   if (best <= 0) return 'Give it another go.';
   return `Best so far: ${definition.formatScore(best)}.`;
+}
+
+/** The rendering convention for `GameDefinition.headphonesRecommended`. */
+const HEADPHONES_HINT = 'Headphones recommended.';
+
+function gateDetail(definition: GameDefinition): string | undefined {
+  if (!definition.headphonesRecommended) return definition.introDetail;
+  return definition.introDetail
+    ? `${definition.introDetail} ${HEADPHONES_HINT}`
+    : HEADPHONES_HINT;
 }
 
 function meetsRequirement(

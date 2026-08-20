@@ -25,6 +25,7 @@ export function scopeScreen(root: HTMLElement): Cleanup {
     centroid: readoutCell('Centroid'),
     flatness: readoutCell('Flatness'),
     onsets: readoutCell('Onsets'),
+    gated: readoutCell('Gated'),
   };
   const readout = el('div', { class: 'readout' }, ...Object.values(cells).map((c) => c.root));
 
@@ -58,6 +59,7 @@ export function scopeScreen(root: HTMLElement): Cleanup {
     const flux: number[] = [];
     let onsetCount = 0;
     let onsetFlash = 0;
+    let gateFlash = 0;
 
     return startLoop((dt) => {
       const frame = analyser.read();
@@ -68,6 +70,8 @@ export function scopeScreen(root: HTMLElement): Cleanup {
         onsetFlash = 1;
       }
       onsetFlash = Math.max(0, onsetFlash - dt * 4);
+      if (frame.gated) gateFlash = 1;
+      gateFlash = Math.max(0, gateFlash - dt * 4);
 
       flux.push(frame.flux);
       if (flux.length > FLUX_HISTORY) flux.shift();
@@ -83,6 +87,12 @@ export function scopeScreen(root: HTMLElement): Cleanup {
         ctx.fillStyle = `rgba(74, 222, 128, ${onsetFlash * 0.18})`;
         ctx.fillRect(0, 0, width, height);
       }
+      // A distinct colour from the onset flash: this one means "the analyser
+      // is deliberately ignoring what it just heard", not "it heard a clap".
+      if (gateFlash > 0) {
+        ctx.fillStyle = `rgba(248, 113, 113, ${gateFlash * 0.22})`;
+        ctx.fillRect(0, 0, width, height);
+      }
 
       cells.level.set(frame.level.toFixed(2));
       cells.db.set(`${Math.round(frame.db)}`);
@@ -92,6 +102,7 @@ export function scopeScreen(root: HTMLElement): Cleanup {
       cells.centroid.set(`${Math.round(frame.centroid)}`);
       cells.flatness.set(frame.flatness.toFixed(3));
       cells.onsets.set(String(onsetCount));
+      cells.gated.set(frame.gated ? 'yes' : 'no');
     });
   }
 

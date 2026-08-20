@@ -10,6 +10,7 @@ import {
   normaliseLevel,
   normalisePitch,
 } from './calibration';
+import type { SuppressionSource } from './output';
 import type { AudioSource, Bands, CalibrationProfile, Frame } from './types';
 
 const BAND_EDGES_HZ: Array<[keyof Bands, number, number]> = [
@@ -26,6 +27,13 @@ export interface AnalyserOptions {
   fftSize?: number;
   minPitchHz?: number;
   maxPitchHz?: number;
+  /**
+   * Consulted each `read()` to decide whether this frame's onset/level
+   * reflects the room or the game's own speaker output. See ADR-0005 — the
+   * output bus implements this, but detectors stay ignorant of it: the
+   * analyser is the only thing that asks.
+   */
+  suppression?: SuppressionSource;
 }
 
 export class Analyser {
@@ -39,11 +47,15 @@ export class Analyser {
   private readonly magnitudes: Float32Array<ArrayBuffer>;
   private readonly pitchDetector: PitchDetector;
   private readonly onsetDetector: OnsetDetector;
+  private readonly suppression?: SuppressionSource;
   private readonly startedAt: number;
   private lastT = 0;
+  /** Held during a gated frame so a frozen level doesn't just read 0. */
+  private lastLevel = 0;
 
   constructor(readonly source: AudioSource, options: AnalyserOptions = {}) {
     const context = source.context;
+    this.suppression = options.suppression;
     this.node = context.createAnalyser();
     this.node.fftSize = options.fftSize ?? 2048;
     // Our own detectors do their own smoothing; the analyser's would just add
@@ -75,7 +87,12 @@ export class Analyser {
     this.node.getFloatFrequencyData(this.spectrum);
 
     const db = toDecibels(rms(this.timeDomain));
-    const level = normaliseLevel(db, this.profile);
+    const rawLevel = normaliseLevel(db, this.profile);
+    const gated = this.suppression?.isSuppressed() ?? false;
+    // Frozen, not zeroed: a hard drop to 0 is itself a spike a game could
+    // misread, and the point is to look like nothing happened at all.
+    const level = gated ? this.lastLevel : rawLevel;
+    if (!gated) this.lastLevel = level;
 
     // Pitch detection on near-silence is wasted work and produces noise-driven
     // garbage, so gate it on the calibrated level rather than trusting clarity
@@ -84,6 +101,9 @@ export class Analyser {
       ? this.pitchDetector.detect(this.timeDomain)
       : { hz: null, clarity: 0 };
 
+    // Still fed every frame — even gated — so its rolling flux history stays
+    // current and doesn't misfire the instant the gate closes. Only the
+    // *result* is suppressed.
     const onset = this.onsetDetector.process(this.spectrum, t);
     this.toMagnitudes();
 
@@ -101,12 +121,13 @@ export class Analyser {
         pitch.hz === null
           ? null
           : normalisePitch(pitch.hz, this.profile.pitchRange ?? DEFAULT_PITCH_RANGE),
-      onset: onset.onset,
+      onset: gated ? false : onset.onset,
       flux: onset.flux,
-      onsetStrength: onset.strength,
+      onsetStrength: gated ? 0 : onset.strength,
       centroid: this.centroid(),
       flatness: this.flatness(),
       bands: this.bands(),
+      gated,
     };
   }
 

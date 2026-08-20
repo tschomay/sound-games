@@ -4,6 +4,7 @@
  * user gesture, so the session is opened once on a tap and kept alive.
  */
 import { Analyser } from './analyser';
+import { OutputBus } from './output';
 import { createMicSource } from './source';
 import { DEFAULT_PROFILE, loadProfile } from './calibration';
 import type { AudioSource } from './types';
@@ -11,6 +12,13 @@ import type { AudioSource } from './types';
 export interface Session {
   source: AudioSource;
   analyser: Analyser;
+  /** Shares `source`'s AudioContext — one context per session, not two. */
+  output: OutputBus;
+}
+
+function openSession(source: AudioSource): Session {
+  const output = new OutputBus(source.context);
+  return { source, analyser: new Analyser(source, { suppression: output }), output };
 }
 
 /** Thrown when a screen goes away while its microphone request was in flight. */
@@ -51,7 +59,7 @@ export async function ensureMicSession(): Promise<Session> {
       source.stop();
       throw new SessionAbandonedError();
     }
-    session = { source, analyser: new Analyser(source) };
+    session = openSession(source);
     refreshProfile();
     return session;
   })();
@@ -65,7 +73,7 @@ export async function ensureMicSession(): Promise<Session> {
 
 export function useSource(source: AudioSource): Session {
   stopSession();
-  session = { source, analyser: new Analyser(source) };
+  session = openSession(source);
   refreshProfile();
   return session;
 }
@@ -79,6 +87,7 @@ export function stopSession(): void {
   epoch++;
   if (!session) return;
   session.analyser.dispose();
+  session.output.dispose();
   session.source.stop();
   session = null;
 }
