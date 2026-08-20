@@ -31,4 +31,13 @@ backlog and `docs/adr/` for decisions.
   of the player's comfortable hum. May be absent from a profile.
 - **Requirement** — what a game declares it needs calibrated (`room` or
   `pitchRange`) before it can be played.
-- **Round** — one play session of a game, start to game-over.
+- **Round** — one play session of a game, start to game-over. Its **phase** is
+  `ready`, `playing` or `over`, and every game uses those three words.
+- **Game** — the rules and picture of one game: `update(dt, frame)`, `render`,
+  and its round phase. Knows nothing about microphones, canvases or routing.
+- **Game definition** — the metadata around a game: id, title, what it requires
+  calibrated, which audio sources it supports, and how to create one. The
+  registry is the list of these, and both the menu and the router are built from
+  it.
+- **Shell** — `screens/play.ts`, which every game is played inside. Owns the
+  microphone gate, canvas, frame loop, pausing, restarts, results and scores.

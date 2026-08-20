@@ -25,22 +25,22 @@ describe('HumFlyer', () => {
   it('takes off when you start humming', () => {
     const game = new HumFlyer();
     game.update(DT, humming(0.5));
-    expect(game.phase).toBe('flying');
+    expect(game.phase).toBe('playing');
   });
 
   it('scores when you sing the melody', () => {
     const game = new HumFlyer();
     flyWell(game, 60 * 20);
-    expect(game.phase).toBe('flying');
+    expect(game.phase).toBe('playing');
     expect(game.score).toBeGreaterThan(3);
   });
 
   it('crashes if you hold one note through the whole melody', () => {
     const game = new HumFlyer();
-    for (let i = 0; i < 60 * 20 && game.phase !== 'crashed'; i++) {
+    for (let i = 0; i < 60 * 20 && game.phase !== 'over'; i++) {
       game.update(DT, humming(0.9));
     }
-    expect(game.phase).toBe('crashed');
+    expect(game.phase).toBe('over');
   });
 
   it('lets you take a breath without falling out of the sky', () => {
@@ -48,7 +48,7 @@ describe('HumFlyer', () => {
     flyWell(game, 120);
     const height = game.height;
     for (let i = 0; i < 9; i++) game.update(DT, silence); // 150ms
-    expect(game.phase).toBe('flying');
+    expect(game.phase).toBe('playing');
     expect(game.height).toBeCloseTo(height, 2);
   });
 
@@ -63,8 +63,8 @@ describe('HumFlyer', () => {
   it('ends the round if you stay silent all the way down', () => {
     const game = new HumFlyer();
     game.update(DT, humming(0.5));
-    for (let i = 0; i < 60 * 10 && game.phase !== 'crashed'; i++) game.update(DT, silence);
-    expect(game.phase).toBe('crashed');
+    for (let i = 0; i < 60 * 10 && game.phase !== 'over'; i++) game.update(DT, silence);
+    expect(game.phase).toBe('over');
   });
 
   it('speeds up and tightens the gaps as you go', () => {
@@ -98,13 +98,5 @@ describe('HumFlyer', () => {
     expect(game.score).toBe(0);
     expect(game.distance).toBe(0);
     expect(game.height).toBe(0.5);
-  });
-
-  it('remembers your best score across rounds', () => {
-    const game = new HumFlyer();
-    flyWell(game, 60 * 20);
-    const best = game.score;
-    game.reset();
-    expect(game.best).toBe(best);
   });
 });

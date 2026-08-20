@@ -1,10 +1,12 @@
 /**
  * Hum Flyer's rules, kept free of rendering and of the microphone so the whole
- * thing can be reasoned about (and later tested) by feeding it numbers.
+ * thing can be reasoned about (and tested) by feeding it numbers.
  *
  * The flyer's height is your pitch. Gates open at the pitch of a melody note, so
  * flying the course well means singing the tune — the course *is* the song.
  */
+import type { RoundPhase } from '../../engine/game';
+
 
 export interface Gate {
   /** Distance along the course, in world units. */
@@ -73,8 +75,6 @@ export const DEFAULT_CONFIG: Config = {
   radius: 0.035,
 };
 
-export type Phase = 'ready' | 'flying' | 'crashed';
-
 /** What the game needs from a Frame — nothing more, so tests need no audio. */
 export interface Input {
   voiced: boolean;
@@ -83,11 +83,10 @@ export interface Input {
 }
 
 export class HumFlyer {
-  phase: Phase = 'ready';
+  phase: RoundPhase = 'ready';
   /** Flyer height, 0 at the bottom of the band, 1 at the top. */
   height = 0.5;
   score = 0;
-  best = 0;
   /** How far the course has scrolled, in world units. */
   distance = 0;
   gates: Gate[] = [];
@@ -171,10 +170,10 @@ export class HumFlyer {
       // A round starts when you start humming — no button, because the whole
       // point is that your voice is the controller.
       this.follow(dt, input);
-      if (input.voiced && input.pitchNorm !== null) this.phase = 'flying';
+      if (input.voiced && input.pitchNorm !== null) this.phase = 'playing';
       return;
     }
-    if (this.phase !== 'flying') return;
+    if (this.phase !== 'playing') return;
 
     this.follow(dt, input);
     this.scroll(dt);
@@ -201,7 +200,7 @@ export class HumFlyer {
 
     if (this.height <= 0) {
       this.height = 0;
-      if (this.phase === 'flying') this.phase = 'crashed';
+      if (this.phase === 'playing') this.phase = 'over';
     }
   }
 
@@ -228,7 +227,6 @@ export class HumFlyer {
         gate.passed = true;
         if (gate.cleared) {
           this.score++;
-          this.best = Math.max(this.best, this.score);
           this.celebration = 1;
         }
         continue;
@@ -238,7 +236,7 @@ export class HumFlyer {
       if (relative <= radius && relative >= -radius) {
         const offset = Math.abs(this.height - gate.centre);
         if (offset + radius > gate.halfGap) {
-          this.phase = 'crashed';
+          this.phase = 'over';
           return;
         }
         gate.cleared = true;
