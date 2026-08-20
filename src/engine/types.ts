@@ -18,6 +18,16 @@ export interface Bands {
 }
 
 /**
+ * A frame's shape, classified from zero-crossing rate + spectral flatness (see
+ * `engine/timbre-class.ts`): `'transient'` is a brief broadband burst (a clap),
+ * `'tonal'` is a sustained periodic sound (a held vowel like "aaah"), `'noisy'`
+ * is a sustained but non-periodic sound loud enough to be deliberate (a shout,
+ * or noise that doesn't decay away like a transient does), and `'silence'` is
+ * everything too quiet to classify at all.
+ */
+export type Timbre = 'silence' | 'transient' | 'tonal' | 'noisy';
+
+/**
  * Every detector's output for a single moment. Produced once per animation
  * frame and handed to the game — the unit of communication between the engine
  * and everything else.
@@ -53,6 +63,17 @@ export interface Frame {
   centroid: number;
   /** Spectral flatness 0..1 — near 0 is tonal, near 1 is noise. */
   flatness: number;
+  /**
+   * Zero-crossing rate: the fraction of adjacent sample pairs in the waveform
+   * that flip sign, 0..1. Normalised per-sample rather than per-second so it
+   * stays comparable across devices with different sample rates — see
+   * `engine/timbre-class.ts`. A clean tone sits low (roughly twice its
+   * fundamental's period as a fraction of the sample rate); broadband noise
+   * sits high, near 0.5.
+   */
+  zcr: number;
+  /** This frame's transient/sustained-tone classification. See `Timbre`. */
+  timbreClass: Timbre;
 
   bands: Bands;
 
