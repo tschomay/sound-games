@@ -1,6 +1,7 @@
 /**
  * Audio sources. See ADR-0001 — live mic and loaded file, one interface.
  */
+import { PlaybackTransport } from './transport';
 import type { AudioSource } from './types';
 
 /**
@@ -67,10 +68,20 @@ export async function createMicSource(): Promise<AudioSource> {
 export interface FileSource extends AudioSource {
   readonly kind: 'file';
   readonly buffer: AudioBuffer;
+  /** With no offset, resumes from wherever `pause()` left it (0 if never started). */
   play(offsetSeconds?: number): void;
+  /** Freeze playback in place. A no-op if already paused. */
+  pause(): void;
+  /** Jump to `offsetSeconds`. Keeps playing if it was playing, stays paused if not. */
+  seek(offsetSeconds: number): void;
   /** Seconds into the track, or 0 before playback starts. */
   position(): number;
   playing(): boolean;
+}
+
+/** Narrows a generic `AudioSource` (e.g. `Session.source`) to `FileSource`. */
+export function isFileSource(source: AudioSource): source is FileSource {
+  return source.kind === 'file';
 }
 
 export async function createFileSource(file: File): Promise<FileSource> {
@@ -83,9 +94,19 @@ export async function createFileSource(file: File): Promise<FileSource> {
   const output = context.createGain();
   output.connect(context.destination);
 
+  // Bookkeeping (position, paused/playing) lives in `PlaybackTransport`,
+  // testable with plain numbers; this factory's only job is turning its
+  // decisions into an actual buffer source node. See `transport.ts`.
+  const transport = new PlaybackTransport(buffer.duration);
   let node: AudioBufferSourceNode | null = null;
-  let startedAt = 0;
-  let startOffset = 0;
+
+  function startNodeAt(offsetSeconds: number): void {
+    node?.stop();
+    node = context.createBufferSource();
+    node.buffer = buffer;
+    node.connect(output);
+    node.start(0, offsetSeconds);
+  }
 
   const source: FileSource = {
     kind: 'file',
@@ -93,21 +114,25 @@ export async function createFileSource(file: File): Promise<FileSource> {
     context,
     node: output,
     buffer,
-    play(offsetSeconds = 0) {
+    play(offsetSeconds) {
+      startNodeAt(transport.play(context.currentTime, offsetSeconds));
+    },
+    pause() {
+      transport.pause(context.currentTime);
       node?.stop();
-      node = context.createBufferSource();
-      node.buffer = buffer;
-      node.connect(output);
-      node.start(0, offsetSeconds);
-      startedAt = context.currentTime;
-      startOffset = offsetSeconds;
+      node = null;
+    },
+    seek(offsetSeconds) {
+      const at = transport.seek(context.currentTime, offsetSeconds);
+      // Scrubbing while paused just moves the frozen marker; only a node that
+      // was actually running needs to be torn down and restarted mid-jump.
+      if (transport.playing) startNodeAt(at);
     },
     position() {
-      if (!node) return 0;
-      return Math.min(buffer.duration, startOffset + (context.currentTime - startedAt));
+      return transport.position(context.currentTime);
     },
     playing() {
-      return node !== null && source.position() < buffer.duration;
+      return transport.playing && source.position() < buffer.duration;
     },
     stop() {
       node?.stop();

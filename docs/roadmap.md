@@ -343,6 +343,33 @@ microphone is genuinely hard, and the honest failure mode is that mic-driven bea
 games are mushy while file-driven ones are tight. Budget for the offline path to
 be the good one.
 
+**Source picker shipped:** the first of Phase 6's four "Ships" bullets —
+everything except beat tracking, which is separate, still-open work.
+`src/engine/source.ts`'s `createFileSource` had existed since Phase 0 with
+nothing calling it; it is now reachable. `src/screens/source-picker.ts` adds
+`sourceGate`, a shared mic-or-file choice used by both `scope.ts` (always —
+the scope leads, per the cross-cutting rule) and `play.ts` (only for a
+`GameDefinition` whose `sources` includes `'file'`; every current game is
+`['mic']`, so this is plumbing with nothing visibly different yet). A game
+that doesn't declare file support keeps the exact single-button "Open
+microphone" gate it always had — no needless choice screen. `FileSource`
+gained real `pause()` and `seek()` methods (its `stop()` tears down the whole
+`AudioContext`, which a pause button cannot use), backed by a new,
+independently unit-tested `PlaybackTransport` state machine
+(`src/engine/transport.ts`) that touches no audio node — just a clock and
+plain numbers, same "pure rules, testable" precedent as every game's logic.
+`src/screens/transport-bar.ts` renders a play/pause button and a scrub slider
+over that, appearing in both the scope and the game shell the moment a
+loaded file is the active source. See ADR-0009 for the full design.
+**Beat tracking — both the causal realtime tracker and the offline whole-file
+one — is not built.** No `GameDefinition.sources` value changed, and the
+menu copy this phase's brief also asks for ("games declaring which sources
+they support, and the menu explaining the difference") is deferred: with no
+game yet declaring `'file'`, there is nothing concrete for that copy to
+explain, so it was not speculatively written. Revisit it when the first
+file-capable game ships (Phase 7 at the earliest, since Phase 7's Ecosystem
+Garden is mic-only).
+
 ---
 
 ## Phase 7 — The beat-free music game
