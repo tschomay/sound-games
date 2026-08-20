@@ -616,6 +616,25 @@ music in hand is the first one who can. **B2 Reactive Runner / Tower Defense
 is not part of this — Phase 8 as a whole is not shipped,** only its first
 game.
 
+**Section detection is available:** `engine/sections.ts` —
+`analyseSongStructure(audio)` takes the same decoded `DecodedAudio` the offline
+beat tracker does and returns a `SongStructure`: contiguous `Section`s tiling
+the track (start/end/duration, a 0..1 `intensity` relative to the track, an
+absolute `loudnessDb`, and, when a beat grid was used, the `startBeat` each
+section begins on), plus `dropIndex` naming the climactic section, the
+`BeatGrid` it sampled on so nothing is analysed twice, and a `confidence`. It
+is a beat-synchronous band-energy feature, a self-similarity matrix and a
+Foote checkerboard novelty curve, with a veto that throws out boundaries where
+the music either side turns out to be the same music — see ADR-0013 for the
+algorithm, the two similarity measures that were tried and abandoned, and a
+long honest list of the real music this will struggle on. **This is the
+capability B2 needs, not B2:** no game code exists for it, nothing calls it
+yet, and the wave-structure/boss-timing system the roadmap describes is still
+to be built on top. Whoever builds it should pass the beat grid in rather than
+let both passes compute one (~1.7s cold for a four-minute track, ~700ms with a
+grid supplied), and should decide deliberately what to do when `dropIndex` is
+`null`, which is the honest answer for a track with no dynamic shape.
+
 ---
 
 ## Phase 9 — Making it an app

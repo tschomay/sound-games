@@ -168,7 +168,10 @@ export function computeOnsetEnvelope(audio: DecodedAudio): OnsetEnvelope {
   return envelope;
 }
 
-function downmixAndDecimate(audio: DecodedAudio, decimation: number): Float32Array {
+/** Mono, box-filtered down by `decimation`. Shared with `sections.ts`, which
+ *  needs the same reduction before its own STFT and should not carry a second
+ *  copy of it. */
+export function downmixAndDecimate(audio: DecodedAudio, decimation: number): Float32Array {
   const n = Math.floor(audio.length / decimation);
   const mono = new Float32Array(n);
   const channels = Math.max(1, audio.numberOfChannels);

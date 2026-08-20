@@ -19,6 +19,14 @@ backlog and `docs/adr/` for decisions.
   **round**.
 - **Onset** — a detected broadband transient (a clap, a hit). Distinct from
   **beat**, which is a *predicted* position in an ongoing rhythmic grid.
+- **Section** — one stretch of a *file* between two detected changes of musical
+  character: an intro, a verse, a chorus. Found offline over the whole track
+  before playback (ADR-0013), never live, and unnamed — the detector can say
+  *where* the music changed but not that two sections are the same chorus
+  returning. Distinct from **round**, which is a stage of a game.
+- **Drop** — the most intense section of a track, the loudest and bassiest one.
+  May be absent: a track with no dynamic shape has no drop, and the detector
+  says so rather than picking one.
 - **Voiced** — the player is producing a sustained tone with a findable
   fundamental, as opposed to noise or silence.
 - **Calibration profile** — a player's measured noise floor, loudness ceiling and
