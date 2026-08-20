@@ -122,7 +122,7 @@ both a live microphone and a loaded audio file, and the two give genuinely
 different capabilities, so some games will be mic-only, some file-only, and some
 will support both with degraded features on mic.
 
-## B1. Rhythm-Gated Combat — `planned`
+## B1. Rhythm-Gated Combat — `built`
 
 You can only attack on the beat of whatever's playing; enemies also move on beat.
 

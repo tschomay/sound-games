@@ -541,6 +541,81 @@ to it.
 
 **Risk:** medium, and almost entirely inherited from Phase 6.
 
+**Rhythm-Gated Combat shipped:** `games/rhythm-gated-combat/` — `game.ts` is
+pure rules (`RhythmGatedCombat`, unit-tested the same way every other game's
+rules are, with synthetic `Frame.beat`-shaped inputs — `bpm`, `beatPhase`,
+`onBeat`, `confidence`, `beatIndex` — exactly as this phase's brief asked
+for), `index.ts` is the `GameDefinition` plus a `render`. This is the first
+game in the project to actually read `Frame.beat`, every prior one having
+left it at `NO_BEAT`. Attack is a tap, not a Frame field — same split Sonar
+Maze uses (ADR-0006) and for the same reason: the hook here is rhythm, not
+voice, so a tap is the natural non-audio verb, leaving `beat`/`bands` free to
+gate and flavour it rather than also carrying input. A round doesn't start
+until the beat is confidently locked (`bpm` known, `confidence` past a floor,
+held briefly) — the same "wait for a trustworthy signal" precedent every
+prior game's `ready` phase uses, generalised to the signal this game cares
+about most. **Enemies move on `onBeat`, never on `dt`:** every beat edge,
+each live enemy takes exactly one discrete step closer, deliberately
+unsmoothed — a beat-locked hop, not eased motion, is what "moves on beat"
+is supposed to mean. An enemy that steps to zero lands a hit and despawns.
+**The timing window is a real span, not a knife-edge:** `hitWindowFraction`
+(±20% of the beat period by default) is generous on purpose, per ADR-0010's
+own warning that mic-side beat tracking is "mushy" — ±20% at 120 BPM is
+±100ms either side of the beat instant, closer to a forgiving rhythm game
+than a precision one. The window is identical on mic and file: the rules
+never change with source, only what's drawn does — see below. `bands` plays
+the secondary, texture role the brief asked for and nothing more: which
+enemy kind spawns (bass-dominant moments spawn a slow, two-hit `brute`;
+high-dominant moments spawn a fast, fragile `sprite`; anything without a
+standout band — including silence — spawns the neutral `grunt`), never a
+second gate on the attack itself.
+
+**Mic vs. file:** the rules in `game.ts` take no source information at all —
+`update()` and `attack()` behave identically regardless of where `Frame.beat`
+came from, a deliberate choice so a player's actual odds never secretly
+depend on their source. The look-ahead telegraph the brief asked for is
+implemented as a rendering-only difference in `index.ts`, detected by reading
+`currentSession()?.source.kind` (`engine/session.ts`) once per `render()`
+call — `GameDefinition.create(profile)` itself runs before the mic/file gate
+resolves, so no session (sometimes not even the previous game's) exists yet
+at that point, ruling out fixing the mode at construction. On a file source,
+the beat lane draws markers for the next few beats' exact arrival times,
+computed from the current `bpm`/`beatPhase` extrapolated forward — trustworthy
+several beats out only because the grid behind it (`BeatGridReader`/`BeatGrid`,
+`engine/beat-offline.ts`) is fixed before playback starts. On a mic source the
+lane shows only the live pulse at the beat instant itself, deliberately not
+extrapolated further, because the causal tracker's phase lock can still be
+nudging itself into place (ADR-0010) and showing a multi-beat prediction it
+doesn't itself stand behind would be dishonest. A `mic source — live beat
+only` / `file source — beats telegraphed` label makes the difference legible
+on screen, not just internal.
+
+**What was tested, and what wasn't.** 17 new unit tests in
+`rhythm-gated-combat/__tests__/game.test.ts` cover the round only starting on
+a sustained, confident beat lock (and not on a flickery or low-confidence
+one); enemies never moving without an `onBeat` edge and moving exactly one
+step per edge; an attack whiffing when it lands off-beat even with a target
+in range, and whiffing on-beat with nothing in range; a well-timed attack
+killing the nearest in-range enemy; an enemy reaching the player dealing
+damage and disappearing; health reaching zero ending the round; `bands`
+choosing the right enemy kind (including the silent/neutral default); the
+enemy list staying bounded through a long hostile round; the spawn interval
+shrinking with score down to its floor; and a clean `reset()`. All 235 tests
+in the suite pass, `tsc --noEmit` is clean, and the production build
+succeeds. **What none of that can establish — and this is the same open item
+Phase 6 itself shipped with, not a new one — is real beat-tracking accuracy.**
+Every number above comes from synthetic `BeatReading`s fed directly into the
+rules; nothing in this sandboxed environment can play real music into a real
+microphone in a real room, so whether the causal tracker's phase lock is
+steady enough on real audio for the hit window to feel fair, and whether a
+file's offline grid actually lines up with a real track the way it does with
+a synthetic click track, are both unverified here, exactly as ADR-0010 and
+the Phase 6 "done when" already flagged. Rhythm-Gated Combat inherits that
+open item rather than resolving it; whoever next has a real device and real
+music in hand is the first one who can. **B2 Reactive Runner / Tower Defense
+is not part of this — Phase 8 as a whole is not shipped,** only its first
+game.
+
 ---
 
 ## Phase 9 — Making it an app
