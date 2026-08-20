@@ -93,7 +93,7 @@ The most original idea here and the one that would feel like magic if it lands.
   centroid moves with pitch, so the two axes will bleed into each other. Needs a
   spike before it gets committed to.
 
-## A6. Voice Line Rider — `planned`
+## A6. Voice Line Rider — `built`
 
 Hum for a few seconds; your pitch contour is captured as a terrain line; a marble
 rolls down what you sang. Puzzle framing: get the marble to the goal.

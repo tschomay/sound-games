@@ -250,6 +250,41 @@ bleed into each other.
 scheduled, or it is written up and moved to `parked` in `ideas.md`. Both are
 acceptable outcomes; carrying it indefinitely as "planned" is not.
 
+**Voice Line Rider shipped:** `games/voice-line-rider/` — `game.ts` is pure
+rules (`VoiceLineRider`, unit-tested the same way every other game's rules
+are), `index.ts` is the `GameDefinition` plus a `render`. The record/replay
+split doesn't map onto `ready`/`playing`/`over` cleanly, so it wasn't given a
+new `RoundPhase`: both recording and replaying live inside `phase ===
+'playing'`, with a `mode: 'recording' | 'replaying'` field the render reads to
+pick between two different pictures — a growing waveform, then a terrain-and-
+marble scene — the same pattern Sonar Maze uses for `crashed`/`caught`. A round
+starts on your first hummed note, same as Hum Flyer; for the next
+`recordDuration` seconds (4 by default, configurable in `Config`, not
+hardcoded) the pitch contour is sampled at a fixed `sampleInterval` into a
+`contour: number[]`, holding the last pitch through a silent gap rather than
+dropping to zero, so a breath mid-hum doesn't carve a cliff into the terrain.
+Once recording ends the contour is fixed and a marble is simulated rolling
+across it as a bead on a wire — `acceleration = -gravity * localSlope`, plus
+exponential velocity damping so it actually settles instead of oscillating
+forever — driven by `dt` alone. `update(dt, frame)` ignores `frame` completely
+during replay: that's the whole point of "recorded then replayed," so there
+was nothing to gain from also reading the mic, and the roadmap's suggested
+"retry gesture" was left out in favour of the shell's existing "play again"
+flow. The round ends when the marble settles (or a `maxReplayDuration` safety
+cap is hit) and scores by how close it stopped to a goal marker placed at a
+fixed fraction of the recorded contour: `score = max(0, 1000 - distance *
+10)`, normalised against a fixed scale rather than the actual recorded contour
+length so the "reached the goal" formatting threshold stays exact regardless
+of small frame-timing variance in how many samples a real round captures.
+`formatScore` reads `"Reached the goal!"` at/above that threshold and
+`"N.N units short"` otherwise, matching the wording this phase's brief
+suggested. `requires: 'pitchRange'` — the second game, after Hum Flyer, that
+needs a hummed range calibrated. `headphonesRecommended: false`: the mic is
+only read during the few-second recording window, and the replay that follows
+needs nothing from it at all, so there's no continuous listening for a phone
+speaker to bleed into. No new engine code was needed. A5 Vowel Steering is
+unstarted — still `planned` in `ideas.md` — and picked up separately.
+
 ---
 
 ## Phase 6 — Music input
