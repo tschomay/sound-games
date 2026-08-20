@@ -24,3 +24,8 @@ so a locked game can say *why* it is locked.
 - The analyser still reports `pitchNorm` for uncalibrated players, against a
   default range. Games that genuinely depend on pitch gate on the profile
   instead of trusting that value.
+- The menu shows the two halves as separate, separately actionable rows, and
+  there is a voice-only entry point (`#/voice-setup`) that reuses the room
+  measurements already on file. Without those, the split was invisible: the
+  choice only appeared partway through a flow, so a player who had already
+  calibrated saw no sign that voice control was optional or could be added.

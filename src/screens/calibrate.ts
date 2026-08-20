@@ -5,6 +5,10 @@
  * Room first — noise floor and comfortable loudness — which every game needs and
  * which is saved the moment it's measured. Then the hum range, which only
  * voice-controlled games need, and which the player can skip.
+ *
+ * The same flow serves two entry points: the full run, and a voice-only run for
+ * someone who skipped the hum test (or calibrated before it was optional) and
+ * wants to add it without redoing the room.
  */
 import { ensureMicSession, refreshProfile, stopSession } from '../engine/session';
 import { loadProfile, padPitchRange, saveProfile } from '../engine/calibration';
@@ -91,14 +95,41 @@ const VOICE_STEPS: Step[] = [
 const LEAD_IN = 1;
 
 export function calibrateScreen(root: HTMLElement): Cleanup {
+  return calibrationFlow(root, 'full');
+}
+
+/**
+ * Just the hum test, for a player who already has a room profile. Reached from
+ * the menu, so adding voice control later doesn't mean sitting through the room
+ * steps again.
+ */
+export function voiceSetupScreen(root: HTMLElement): Cleanup {
+  const existing = loadProfile();
+  if (!existing) {
+    navigate('calibrate');
+    return () => {};
+  }
+  return calibrationFlow(root, 'voice', existing);
+}
+
+type FlowMode = 'full' | 'voice';
+
+function calibrationFlow(
+  root: HTMLElement,
+  mode: FlowMode,
+  existing: CalibrationProfile | null = null,
+): Cleanup {
   const stage = el('div', { class: 'stage' });
   const body = el('div', { class: 'stack' });
   stage.appendChild(body);
-  root.appendChild(el('div', { class: 'screen screen--scroll' }, topbar('Calibrate'), stage));
+  const title = mode === 'voice' ? 'Voice setup' : 'Calibrate';
+  root.appendChild(el('div', { class: 'screen screen--scroll' }, topbar(title), stage));
 
+  // In voice mode the room is already measured; carry it through so saving the
+  // new range doesn't clobber it.
   const measurements: Measurements = {
-    noiseFloorDb: -65,
-    loudDb: -22,
+    noiseFloorDb: existing?.noiseFloorDb ?? -65,
+    loudDb: existing?.loudDb ?? -22,
     lowHz: 110,
     highHz: 440,
   };
@@ -108,7 +139,9 @@ export function calibrateScreen(root: HTMLElement): Cleanup {
   let disposed = false;
 
   const gate = overlay(
-    'First a few seconds of quiet, then one steady sound. That covers every game; voice games need a short hum test after that, which you can skip.',
+    mode === 'voice'
+      ? 'Two short hums — your lowest comfortable note, then your highest. About ten seconds.'
+      : 'First a few seconds of quiet, then one steady sound. That covers every game; voice games need a short hum test after that, which you can skip.',
     'Start',
     () => void begin(),
     'Your audio is analysed on your device and never leaves it.',
@@ -122,7 +155,8 @@ export function calibrateScreen(root: HTMLElement): Cleanup {
       if (disposed) return;
       gate.root.remove();
       readFrame = session.analyser.read.bind(session.analyser);
-      runPhase(ROOM_STEPS, finishRoom);
+      if (mode === 'voice') runPhase(VOICE_STEPS, finishVoice);
+      else runPhase(ROOM_STEPS, finishRoom);
     } catch (error) {
       gate.showError(error instanceof Error ? error.message : 'Could not open the microphone.');
     }

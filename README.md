@@ -25,7 +25,8 @@ deployed site is HTTPS, so it works on a phone as-is.
 
 | | |
 | --- | --- |
-| **Calibrate** | Measures your room's noise floor, then optionally your hum range. Everything else reads the profile it writes, so run it first. The hum test is only needed for voice-controlled games and can be skipped. |
+| **Calibrate** | Measures your room's noise floor, then optionally your hum range. Everything else reads the profile it writes, so run it first. |
+| **Voice setup** | The hum test on its own, for adding voice control later without redoing the room. Only voice-controlled games need it. |
 | **Hum Flyer** | Hum to fly — higher note, higher flight. The gaps trace a melody, so flying it well means singing the tune. |
 | **Signal scope** | Live waveform, spectrum and every detector reading. For tuning, and for working out why a game is misreading you. |
 

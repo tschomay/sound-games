@@ -1,6 +1,6 @@
 import './styles.css';
 import { menuScreen } from './screens/menu';
-import { calibrateScreen } from './screens/calibrate';
+import { calibrateScreen, voiceSetupScreen } from './screens/calibrate';
 import { scopeScreen } from './screens/scope';
 import { humFlyerScreen } from './games/hum-flyer/screen';
 import { stopSession } from './engine/session';
@@ -9,6 +9,7 @@ import type { Screen } from './ui';
 const ROUTES: Record<string, Screen> = {
   '': menuScreen,
   calibrate: calibrateScreen,
+  'voice-setup': voiceSetupScreen,
   scope: scopeScreen,
   'hum-flyer': humFlyerScreen,
 };

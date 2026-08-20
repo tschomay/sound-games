@@ -18,12 +18,6 @@ interface Entry {
 
 const ENTRIES: Entry[] = [
   {
-    route: 'calibrate',
-    title: 'Calibrate',
-    description: 'Measure your room, and optionally your voice. Do this first, and again whenever you change device or room.',
-    requires: null,
-  },
-  {
     route: 'hum-flyer',
     title: 'Hum Flyer',
     description: 'Hum to fly. Higher note, higher flight. Thread the gaps.',
@@ -62,8 +56,8 @@ export function menuScreen(root: HTMLElement): Cleanup {
         { class: 'stack' },
         el('h1', { text: 'Sound Games' }),
         el('p', { text: 'Games you play with your voice. Headphones recommended.' }),
+        setupPanel(profile),
         ...cards,
-        el('p', { class: 'hint', text: statusText(profile) }),
       ),
     ),
   );
@@ -84,11 +78,59 @@ function unmetRequirement(
   return null;
 }
 
-function statusText(profile: CalibrationProfile | null): string {
-  if (!profile) return 'Not calibrated yet.';
-  if (!profile.pitchRange) {
-    return 'Room calibrated. Voice control not set up yet.';
-  }
-  const { lowHz, highHz } = profile.pitchRange;
-  return `Calibrated, with a voice range of ${Math.round(lowHz)}–${Math.round(highHz)} Hz.`;
+/**
+ * Calibration state, stated plainly and each half separately actionable.
+ *
+ * This used to be one line of hint text under the games, which made the two
+ * halves invisible: someone who had calibrated saw nothing to suggest voice
+ * control was a separate, optional thing they could add or redo.
+ */
+function setupPanel(profile: CalibrationProfile | null): HTMLElement {
+  const rows = [
+    setupRow({
+      label: 'Room',
+      detail: profile
+        ? `Noise floor ${Math.round(profile.noiseFloorDb)} dB`
+        : 'Not measured yet — every game needs this',
+      done: profile !== null,
+      action: profile ? 'Redo' : 'Set up',
+      route: 'calibrate',
+    }),
+    setupRow({
+      label: 'Voice control',
+      detail: profile?.pitchRange
+        ? `Range ${Math.round(profile.pitchRange.lowHz)}–${Math.round(profile.pitchRange.highHz)} Hz`
+        : 'Optional — only for games you play by humming',
+      done: profile?.pitchRange != null,
+      action: profile?.pitchRange ? 'Redo' : 'Set up',
+      // Without a room profile there is nothing to add a range to, so start at
+      // the beginning instead of dropping them into a half-finished flow.
+      route: profile ? 'voice-setup' : 'calibrate',
+    }),
+  ];
+  return el('section', { class: 'setup' }, ...rows);
+}
+
+interface SetupRow {
+  label: string;
+  detail: string;
+  done: boolean;
+  action: string;
+  route: string;
+}
+
+function setupRow(row: SetupRow): HTMLElement {
+  const button = el('button', { class: 'btn-ghost setup-action', text: row.action });
+  button.addEventListener('click', () => navigate(row.route));
+  return el(
+    'div',
+    { class: 'setup-row', 'data-done': row.done ? 'true' : 'false' },
+    el(
+      'div',
+      { class: 'setup-text' },
+      el('strong', { text: row.label }),
+      el('span', { class: 'hint', text: row.detail }),
+    ),
+    button,
+  );
 }

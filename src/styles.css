@@ -272,3 +272,53 @@ button:disabled {
 .progress-fill {
   background: var(--warn);
 }
+
+/* Calibration state on the menu — two halves, each separately actionable. */
+.setup {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--panel-edge);
+  border-radius: 1rem;
+  overflow: hidden;
+}
+
+.setup-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.7rem 0.9rem;
+  background: var(--panel);
+}
+
+.setup-row + .setup-row {
+  border-top: 1px solid var(--panel-edge);
+}
+
+.setup-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.setup-text strong {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.setup-text .hint {
+  font-size: 0.78rem;
+}
+
+/* A tick that reads at a glance without relying on colour alone. */
+.setup-row[data-done='true'] .setup-text strong::after {
+  content: ' ✓';
+  color: var(--accent);
+}
+
+.setup-action {
+  flex: none;
+  min-height: 2.25rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
