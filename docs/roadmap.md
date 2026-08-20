@@ -103,7 +103,7 @@ should be a deliberate decision, not a discovery.
 
 ---
 
-## Phase 3 — The level-only game
+## Phase 3 — The level-only game — **shipped**
 
 **Ships: A3 Quiet Game.** Stay below a volume threshold to sneak past guards;
 shout deliberately to break glass or throw a distraction.
@@ -112,9 +112,27 @@ shout deliberately to break glass or throw a distraction.
 the cheapest complete game on the list, which makes it the right way to prove the
 Phase 1 shell against something that is not Hum Flyer.
 
-**Done when** it is playable start to finish on a phone with no new engine code.
+**Done when** it is playable start to finish on a phone with no new engine code. ✅
 
-**Risk:** very low.
+**What actually shipped:** `games/quiet-game/` — `game.ts` is pure rules
+(`QuietGame`, unit-tested exactly like `HumFlyer`), `index.ts` is the
+`GameDefinition` plus a `render`. An auto-scrolling corridor of two obstacle
+kinds, both read from `Frame.level` alone: **guards**, a zone you must cross
+with level under a sneak threshold or a per-obstacle suspicion meter fills and
+catches you; and **glass panels**, which you must cross while shouting above a
+higher threshold or you crash into them unbroken. Shattering a glass panel also
+buys a few seconds where guards ignore your volume entirely — the "throw a
+distraction" half of the pitch, folded into the same shatter action rather than
+built as a second mechanic. A round starts once you hold quiet for a beat,
+mirroring Hum Flyer's "start on your first sound" but inverted, which doubles as
+the joke the idea was pitched on. `requires: 'room'` — no pitch range needed, so
+a player who has only done the room half of calibration can play immediately.
+`headphonesRecommended: false`: no game audio, and the only detector in play is
+level, so there is nothing for headphones to protect. No new engine code was
+needed — confirms `engine/game.ts`'s contract holds for a game shaped nothing
+like Hum Flyer.
+
+**Risk:** very low. Held.
 
 ---
 

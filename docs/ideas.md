@@ -54,7 +54,7 @@ from one microphone.
 - **Risk:** medium — the transient/sustain classifier needs real tuning, and game
   SFX through a phone speaker will re-trigger the onset detector.
 
-## A3. Quiet Game — `planned`
+## A3. Quiet Game — `built`
 
 Inverted mechanic: stay **below** a volume threshold to sneak past guards, and
 shout deliberately to shatter glass or throw a distraction.
