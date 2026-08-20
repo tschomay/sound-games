@@ -1,5 +1,5 @@
 /**
- * Synthetic signals for the beat-tracker tests.
+ * Synthetic signals for the beat-tracker and section-detector tests.
  *
  * Neither tracker needs real audio to be checked for correctness, and there is
  * no real audio to be had here anyway — jsdom has no Web Audio (see
@@ -126,4 +126,111 @@ export function noiseAudio(durationSeconds: number, sampleRate = 44100, seed = 3
 
 export function silentAudio(durationSeconds: number, sampleRate = 44100): DecodedAudio {
   return decodedAudio(new Float32Array(Math.round(durationSeconds * sampleRate)), sampleRate);
+}
+
+/** A single unchanging sine — audio with a beginning and an end and nothing in
+ *  between. The section detector must find no structure in it. */
+export function toneAudio(
+  durationSeconds: number,
+  frequencyHz = 220,
+  sampleRate = 44100,
+): DecodedAudio {
+  const samples = new Float32Array(Math.round(durationSeconds * sampleRate));
+  for (let i = 0; i < samples.length; i++) {
+    samples[i] = 0.4 * Math.sin((2 * Math.PI * frequencyHz * i) / sampleRate);
+  }
+  return decodedAudio(samples, sampleRate);
+}
+
+/** One stretch of a `structuredTrack`, internally unchanging by construction. */
+export interface SegmentSpec {
+  seconds: number;
+  /** Sustained sine partials, in Hz — the segment's harmonic content. */
+  tones?: number[];
+  /** Amplitude of each tone. */
+  amplitude?: number;
+  /** A sustained low sine, the segment's "bass". */
+  bassHz?: number;
+  bassAmplitude?: number;
+  /** Broadband hiss level — the segment's "texture". */
+  noise?: number;
+}
+
+export interface StructuredTrackOptions {
+  segments: SegmentSpec[];
+  /** Overlay a click track at this tempo across the whole file, so a beat grid
+   *  exists and the beat-synchronous sampling path is the one under test. Omit
+   *  for a beatless track that must fall back to the fixed time grid. */
+  bpm?: number;
+  /** Amplitude of those clicks. */
+  clickAmplitude?: number;
+  sampleRate?: number;
+  seed?: number;
+}
+
+export interface StructuredTrack {
+  audio: DecodedAudio;
+  /** The exact internal boundary times, in seconds — the segment starts, without
+   *  the implicit ones at 0 and at the end of the file. This is the ground truth
+   *  a detected boundary is scored against. */
+  boundaries: number[];
+  /** Start of each segment including 0, then the total duration: `segments.length
+   *  + 1` values. */
+  edges: number[];
+  durationSeconds: number;
+}
+
+/**
+ * A track assembled from concatenated segments with exactly known boundaries.
+ *
+ * Each segment is internally stationary — the same tones, bass and hiss from its
+ * first sample to its last — so the *only* changes of character in the whole file
+ * are the ones at the joins. That makes it ground truth for boundary detection in
+ * the same way `clickTrack` is ground truth for tempo, **and it is just as
+ * unrepresentative of real music**: no real section is stationary, real
+ * boundaries are often crossfaded or anticipated by a fill, and a real verse and
+ * chorus differ by far less than any two segments here will. See ADR-0013.
+ */
+export function structuredTrack(options: StructuredTrackOptions): StructuredTrack {
+  const sampleRate = options.sampleRate ?? 44100;
+  const random = mulberry32(options.seed ?? 11);
+  const total = options.segments.reduce((sum, segment) => sum + segment.seconds, 0);
+  const samples = new Float32Array(Math.round(total * sampleRate));
+
+  const edges: number[] = [0];
+  let cursor = 0;
+  for (const segment of options.segments) {
+    const from = Math.round(cursor * sampleRate);
+    const to = Math.min(samples.length, Math.round((cursor + segment.seconds) * sampleRate));
+    const amplitude = segment.amplitude ?? 0.25;
+    const noise = segment.noise ?? 0;
+    for (let i = from; i < to; i++) {
+      const t = i / sampleRate;
+      let value = noise > 0 ? (random() * 2 - 1) * noise : 0;
+      for (const tone of segment.tones ?? []) value += amplitude * Math.sin(2 * Math.PI * tone * t);
+      if (segment.bassHz !== undefined) {
+        value += (segment.bassAmplitude ?? 0.3) * Math.sin(2 * Math.PI * segment.bassHz * t);
+      }
+      samples[i] = value;
+    }
+    cursor += segment.seconds;
+    edges.push(cursor);
+  }
+
+  if (options.bpm !== undefined) {
+    const period = 60 / options.bpm;
+    // The same click in every segment on purpose: the beat is the one thing that
+    // does *not* change at a boundary, so it cannot be what the detector is
+    // reacting to.
+    for (let t = period / 2; t < total; t += period) {
+      addClick(samples, sampleRate, t, options.clickAmplitude ?? 0.5, random);
+    }
+  }
+
+  return {
+    audio: decodedAudio(samples, sampleRate),
+    boundaries: edges.slice(1, -1),
+    edges,
+    durationSeconds: samples.length / sampleRate,
+  };
 }
