@@ -67,7 +67,7 @@ they're sitting in.
 - **Platform:** mobile-first
 - **Risk:** very low. Good candidate for the second build.
 
-## A4. Sonar Maze — `planned`
+## A4. Sonar Maze — `built`
 
 Dark screen. You clap; a wavefront propagates outward and illuminates whatever
 geometry it touches. Louder clap, bigger radius. You map the maze by making noise

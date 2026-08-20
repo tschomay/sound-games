@@ -153,6 +153,31 @@ devices, checked in the scope.
 sound is where this could disappoint. Build the classifier readout into the scope
 before building the game around it.
 
+**Sonar Maze shipped:** an auto-advancing corridor of `lanes` (3) parallel
+tracks, dark by default. Every `spacing` world units a fork walls off two of
+the three lanes; you have to already be in the one open lane by the time you
+reach it. Which lane that is stays hidden — genuine fog of war — until a
+clap's wavefront reaches the fork: `onset` triggers it, `level` sets how far
+it reaches, and revealed geometry stays revealed for the rest of the round
+(you're mapping it, not just lighting it). A hunter drifts forward from behind
+at a base speed kept just under the player's starting speed, so an unclapped
+round lets it fall behind on its own; every clap raises an "alertness" value
+(scaled by `level`) that both speeds the hunter up — past the player's own top
+speed at full alertness — and locks its lane-tracking on harder, and that
+value decays when you stay quiet. That is the see-more/get-eaten loop from the
+pitch: reading the maze costs noise, and noise is exactly what draws the
+threat in. The hunter ignores the maze's walls entirely (it's not navigating
+by sight, it's homing on noise) and its "randomness" is a deterministic
+sine-based wander rather than real RNG, both simplifications made to keep the
+rules small and the tests reproducible — see the doc comment on
+`src/games/sonar-maze/game.ts`. Lane changes are a tap (top/bottom half of the
+screen), not a voice input — the game's one audio verb is already fully spent
+on the clap, and `onset`/`level` are the only detectors in scope here — see
+ADR-0006 for why that's a deliberate, scoped exception to "voice as
+controller" rather than a change to the project's general lean. Rendering
+stays to native canvas arcs, gradients and rects — no per-pixel work — per the
+risk note above.
+
 ---
 
 ## Phase 5 — Recorded pitch, and a timbre spike
