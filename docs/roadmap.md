@@ -232,7 +232,7 @@ noisy band) and which numbers to loosen first if real hardware disagrees.
 
 ---
 
-## Phase 5 — Recorded pitch, and a timbre spike
+## Phase 5 — Recorded pitch, and a timbre spike — **shipped**
 
 **Ships: A6 Voice Line Rider.** Hum for a few seconds; the contour becomes
 terrain; a marble rolls down what you sang.
@@ -282,8 +282,38 @@ suggested. `requires: 'pitchRange'` — the second game, after Hum Flyer, that
 needs a hummed range calibrated. `headphonesRecommended: false`: the mic is
 only read during the few-second recording window, and the replay that follows
 needs nothing from it at all, so there's no continuous listening for a phone
-speaker to bleed into. No new engine code was needed. A5 Vowel Steering is
-unstarted — still `planned` in `ideas.md` — and picked up separately.
+speaker to bleed into. No new engine code was needed.
+
+**A5 Vowel Steering spike shipped** as `games/vowel-steering-spike/` — a real,
+registered game (`id: 'vowel-steering-spike'`), titled "Vowel Steering
+(spike)" and described plainly on the menu as a feasibility test rather than
+a finished game, deployed like every other game specifically so it can be
+played on a real phone. Pitch (`frame.pitchNorm`) drives a vertical axis;
+`frame.centroid` drives a horizontal one through a new `normaliseCentroid`,
+log-scaled the same way `normalisePitch` scales a `PitchRange`, against a
+fixed, reasoned (not calibrated) 500–3000Hz brightness range —
+`DEFAULT_VOWEL_RANGE` in `games/vowel-steering-spike/game.ts`. A reticle
+chases both readings toward a sequence of targets placed by a deterministic
+Weyl sequence, same "reproducible over real RNG" precedent Sonar Maze set,
+and both raw axis numbers render on screen continuously — `pitch: 0.62`,
+`vowel: 0.41 (1400Hz)` — so a tester can watch, live, whether nudging pitch
+alone visibly drags the vowel reading. See ADR-0008 for the full reasoning,
+including a synthetic (numbers-only, no microphone) check of the one
+concrete coupling this environment *could* establish without a human: for a
+harmonic-rich voiced sound, spectral centroid is mathematically bounded
+below by the fundamental itself, so some pitch-to-vowel bleed toward the
+bright end is a certainty near the top of a singer's range, not a tuning
+bug. **What that finding cannot do is answer the question this phase's own
+"done when" actually asks.** Whether the two axes feel usably independent
+over the *middle* of a normal hum range — where most of a round is actually
+played — is a perceptual judgment that requires a human humming into a real
+microphone on a real device, which nothing in this sandboxed environment can
+substitute for. So this codebase does not decide it: `ideas.md`'s A5 entry
+stays `planned`, not `built` or `parked`, and **the schedule-vs-park call
+that Phase 5 formally needs to be "done" remains open, pending that
+playtest.** Both halves of the phase are built and live — that's what
+"shipped" means above — but the decision the phase's own success criterion
+asks for is a separate, still-outstanding step.
 
 ---
 
