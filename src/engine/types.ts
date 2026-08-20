@@ -55,6 +55,15 @@ export interface Frame {
   flatness: number;
 
   bands: Bands;
+
+  /**
+   * True while the output bus is suppressing onset/level because game audio
+   * is playing. `onset` is already forced false and `level` already frozen
+   * for the frame when this is true — games don't need to check it to get
+   * that protection, it's here for the scope and for anything else that wants
+   * to know. See ADR-0005.
+   */
+  gated: boolean;
 }
 
 /** The top and bottom of a player's comfortable hum, in Hz. */

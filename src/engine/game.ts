@@ -40,6 +40,16 @@ export interface GameDefinition {
   /** Shown on the microphone prompt before the first round. */
   intro: string;
   introDetail?: string;
+  /**
+   * Set when headphones meaningfully help — most importantly a game that
+   * plays sound *and* reads `level`/`onset` while it does, since the output
+   * bus's suppression window (ADR-0005) only covers a short SFX, not
+   * continuous playback, but also any game continuously listening for voice
+   * where a phone speaker's own bleed can hurt it. The shell renders a
+   * standard hint on the microphone prompt rather than every such game
+   * writing its own copy of it.
+   */
+  headphonesRecommended?: boolean;
   /** What the player is told to do to start a round. */
   readyPrompt: string;
   /** Turns a score into something readable: 3 → "3 gates". */

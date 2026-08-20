@@ -56,7 +56,7 @@ elsewhere would quietly fail on their behalf.
 
 ---
 
-## Phase 2 — Sound output, and ducking
+## Phase 2 — Sound output, and ducking — **shipped**
 
 **Why here:** no game currently makes a sound, which is why we have not yet been
 bitten by hazard 2 in `ideas.md` — *game audio re-enters the microphone*. The
@@ -73,7 +73,29 @@ land first.
   game" warning surfaced in the scope.
 
 **Done when** a game can play a percussive SFX through a speaker without its own
-onset detector counting it.
+onset detector counting it. ✅
+
+**What actually shipped:** `engine/output.ts` (the `OutputBus` — music and SFX
+`GainNode` channels on the session's shared `AudioContext`, with a
+`suppressedUntil` window that `playSfx` opens and `startMusic`/`stopMusic`
+briefly touch), and `Analyser.read()` in `engine/analyser.ts` now takes an
+optional `SuppressionSource` it consults once per frame to force `onset` off
+and freeze `level`, reporting the result as a new `Frame.gated`. `session.ts`
+builds one `OutputBus` per session and wires it into the `Analyser` it
+constructs, so gating comes for free from being inside the shared session — no
+game has had to opt in yet, because no game plays sound yet. `onset.ts` and
+`pitch.ts` were untouched, as intended: the analyser is the only thing that
+asks. `screens/scope.ts` gained a `Gated` readout cell and a red flash distinct
+from the green onset flash. `GameDefinition.headphonesRecommended` replaces
+Hum Flyer's ad hoc `introDetail` string with a structured flag `screens/play.ts`
+renders as a standard line on the microphone gate. See ADR-0005 for the
+reasoning, including why music is not gated for its whole duration.
+
+**What's still unverified:** there is no game yet that plays sound, so the
+220ms default suppression window is reasoned from first principles (SFX +
+room reverb through a phone speaker), not measured. The roadmap's stated
+fallback — requiring headphones for onset-driven games — is still on the table
+once Phase 3+ actually exercises this against a real speaker.
 
 **Risk:** medium, and easy to underestimate. If gating proves unreliable on
 speakers, the fallback is requiring headphones for onset-driven games — which

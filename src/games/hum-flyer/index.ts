@@ -64,7 +64,11 @@ export const humFlyer: GameDefinition = {
   requires: 'pitchRange',
   sources: ['mic'],
   intro: 'Hum to fly — the higher your note, the higher you fly. The gaps trace a melody.',
-  introDetail: 'Stop humming and you fall. Headphones recommended.',
+  introDetail: 'Stop humming and you fall.',
+  // Hum Flyer doesn't play sound today, but it reads pitch continuously and is
+  // the shape of game (voice in, ears on the phone) most likely to want SFX
+  // later — headphones avoid the room-echo problem regardless.
+  headphonesRecommended: true,
   readyPrompt: 'Hum to take off',
   formatScore: (score) => `${score} ${score === 1 ? 'gate' : 'gates'}`,
   create: (profile: CalibrationProfile) =>
