@@ -4,8 +4,11 @@
  * user gesture, so the session is opened once on a tap and kept alive.
  */
 import { Analyser } from './analyser';
+import { CausalBeatTracker } from './beat-causal';
+import { BeatGridReader, type BeatGrid } from './beat-offline';
+import { CausalBeatInput, FileBeatInput, type BeatInput } from './beat-input';
 import { OutputBus } from './output';
-import { createMicSource } from './source';
+import { createMicSource, isFileSource } from './source';
 import { DEFAULT_PROFILE, loadProfile } from './calibration';
 import type { AudioSource } from './types';
 
@@ -16,9 +19,27 @@ export interface Session {
   output: OutputBus;
 }
 
-function openSession(source: AudioSource): Session {
+/**
+ * `beatGrid` is whatever `analyseBeatGrid` (`beat-offline.ts`) already
+ * computed for a file source — this function never decodes or analyses audio
+ * itself, only wires up a reader for a grid someone else already has. See
+ * ADR-0011 for why that analysis happens in `source-picker.ts`, not here.
+ * `null`/omitted means "no grid": either the source is the mic, or the file
+ * had no findable beat, or nobody computed one — either way `Frame.beat` just
+ * stays `NO_BEAT` for this session.
+ */
+function openSession(source: AudioSource, beatGrid: BeatGrid | null = null): Session {
   const output = new OutputBus(source.context);
-  return { source, analyser: new Analyser(source, { suppression: output }), output };
+  const beat = createBeatInput(source, beatGrid);
+  return { source, analyser: new Analyser(source, { suppression: output, beat }), output };
+}
+
+function createBeatInput(source: AudioSource, beatGrid: BeatGrid | null): BeatInput | undefined {
+  if (source.kind === 'mic') return new CausalBeatInput(new CausalBeatTracker());
+  if (isFileSource(source) && beatGrid) {
+    return new FileBeatInput(new BeatGridReader(beatGrid), () => source.position());
+  }
+  return undefined;
 }
 
 /** Thrown when a screen goes away while its microphone request was in flight. */
@@ -71,9 +92,10 @@ export async function ensureMicSession(): Promise<Session> {
   return pending;
 }
 
-export function useSource(source: AudioSource): Session {
+/** @param beatGrid see `openSession`'s doc comment. */
+export function useSource(source: AudioSource, beatGrid: BeatGrid | null = null): Session {
   stopSession();
-  session = openSession(source);
+  session = openSession(source, beatGrid);
   refreshProfile();
   return session;
 }

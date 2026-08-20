@@ -1,3 +1,5 @@
+import type { BeatReading } from './beat';
+
 /** Where audio samples come from. See ADR-0001. */
 export type SourceKind = 'mic' | 'file';
 
@@ -85,6 +87,16 @@ export interface Frame {
    * to know. See ADR-0005.
    */
   gated: boolean;
+
+  /**
+   * What the beat is doing this frame — tempo, phase, confidence — from
+   * whichever tracker (if any) this session wired in. `NO_BEAT` when nothing
+   * is wired in, which is every existing game: a plain zero-value reading
+   * (`bpm: null`, `confidence: 0`, ...), not an absent field, so nothing has
+   * to null-check a whole property to stay indifferent to beats. See
+   * `engine/beat.ts` and ADR-0010/ADR-0011.
+   */
+  beat: BeatReading;
 }
 
 /** The top and bottom of a player's comfortable hum, in Hz. */

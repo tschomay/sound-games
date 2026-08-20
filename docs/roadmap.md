@@ -317,7 +317,7 @@ asks for is a separate, still-outstanding step.
 
 ---
 
-## Phase 6 — Music input
+## Phase 6 — Music input — **shipped**
 
 **Why here:** this is the wall between the two categories, and it is the biggest
 single piece of work in the project. Nothing in category B can start until it
@@ -337,6 +337,11 @@ lands.
 
 **Done when** the scope can show a stable beat grid for a track played into the
 microphone across a room, and an exact one for the same track loaded as a file.
+⚠️ Built, wired, and visible on screen — not yet verified. Every piece named in
+that sentence exists and is exercised by tests against synthetic signal, but
+"looks stable and correct" is a judgment about real audio in a real room, which
+nothing in this sandboxed environment can make. See "what actually shipped"
+below for exactly what is, and isn't, checked.
 
 **Risk:** high — the highest on the roadmap. Realtime beat tracking from a room
 microphone is genuinely hard, and the honest failure mode is that mic-driven beat
@@ -361,14 +366,70 @@ plain numbers, same "pure rules, testable" precedent as every game's logic.
 `src/screens/transport-bar.ts` renders a play/pause button and a scrub slider
 over that, appearing in both the scope and the game shell the moment a
 loaded file is the active source. See ADR-0009 for the full design.
-**Beat tracking — both the causal realtime tracker and the offline whole-file
-one — is not built.** No `GameDefinition.sources` value changed, and the
-menu copy this phase's brief also asks for ("games declaring which sources
-they support, and the menu explaining the difference") is deferred: with no
-game yet declaring `'file'`, there is nothing concrete for that copy to
-explain, so it was not speculatively written. Revisit it when the first
-file-capable game ships (Phase 7 at the earliest, since Phase 7's Ecosystem
-Garden is mic-only).
+**Beat tracking is now wired in and visible in the scope.** The two trackers
+from the phase's second piece (`engine/beat.ts`, `beat-causal.ts`,
+`beat-offline.ts`, `fft.ts`) went from complete-but-unused to actually driving
+`Frame.beat` on every session. `Frame` (`engine/types.ts`) gained a `beat:
+BeatReading` field, defaulting to `NO_BEAT` exactly like `gated` and
+`timbreClass` default to their inert values — every existing game still sees
+`frame.beat === NO_BEAT` and is otherwise unchanged, since none of them read
+it. The two trackers don't share a natural per-frame call shape (the causal
+tracker needs real onset events fed to it every frame to track anything;
+`BeatGridReader` needs the file's playback position, not the analyser's own
+clock, since the two diverge on pause and seek), so `Analyser.read()` doesn't
+call either tracker directly — it calls one `BeatInput` adapter
+(`engine/beat-input.ts`), and `session.ts` builds the right concrete one
+(`CausalBeatInput` wrapping a fresh `CausalBeatTracker` for `'mic'`,
+`FileBeatInput` wrapping a `BeatGridReader` for `'file'`) or none at all. See
+ADR-0011 for the full design, including why the clock question is solved by
+`FileBeatInput` owning its own clock closure rather than `Analyser` branching
+on which tracker it's holding.
+
+For a file, that `BeatGridReader` needs a `BeatGrid`, which means calling
+`analyseBeatGrid` — a real, human-noticeable ~780ms cost for a three-minute
+track (ADR-0010's own measurement). That now happens in
+`screens/source-picker.ts`, folded into the same awaited chain that already
+keeps the gate's "busy" state up through `createFileSource`'s decode, so a
+player sees one continuous busy period rather than a decode that finishes and
+then silently hangs. A file with no findable beat (silence, noise, too short)
+is `analyseBeatGrid` returning `null`, handled the same as never having
+called it — `Frame.beat` stays `NO_BEAT`, not an error.
+
+`screens/scope.ts` gained `BPM` and `Beat confidence` readout cells, plus a
+new visual distinct from the existing green onset flash and red gated flash:
+a small violet ring in the corner that sweeps continuously with `beatPhase`
+(not a binary flash — `beatPhase` is continuous, and a human judges "locked
+on" by watching the sweep's smoothness and pace far more easily than from a
+per-beat blink) plus a disc at its centre that snaps bright on the `onBeat`
+edge and decays. An empty, unfilled ring is itself informative — `bpm: null`
+reads as "found nothing," not as a broken screen. This is the actual "stable
+beat grid" visualisation the phase's done-when calls for; it is what a human
+needs to be looking at to make the call the done-when actually asks for.
+
+**What was tested, and what wasn't.** The wiring itself is unit-tested the
+way `analyser.test.ts` already tested suppression (`fake-audio-context.ts`, no
+real Web Audio): a new `beat-input.test.ts` checks both adapters forward the
+right arguments and delegate `reset()` correctly, and new cases in
+`analyser.test.ts` confirm `Frame.beat` defaults to `NO_BEAT` with nothing
+wired in, that `Analyser.read()` feeds a beat input this frame's own
+`t`/`onset`/`onsetStrength`, and that gating suppresses what reaches it the
+same way it suppresses `Frame.onset`. Combined with ADR-0010's own synthetic-
+signal tests of the trackers' actual tracking behaviour, every piece of code
+in this phase has a test. **None of that is a substitute for what the
+roadmap's own "done when" asks for**, and this codebase does not pretend
+otherwise: whether the scope's beat pulse actually looks locked-on for a real
+track played into a microphone across a real room, and exact for the same
+track loaded as a file, requires a human at the scope with real hardware and
+real music, which nothing in this sandboxed environment can do. That check —
+not the code — is what remains open.
+
+No `GameDefinition.sources` value changed, and the menu copy this phase's
+original brief also asked for ("games declaring which sources they support,
+and the menu explaining the difference") is still deferred: with no game yet
+declaring `'file'`, there is nothing concrete for that copy to explain, so it
+was not speculatively written. Revisit it when the first file-capable game
+ships (Phase 7 at the earliest, since Phase 7's Ecosystem Garden is
+mic-only).
 
 ---
 

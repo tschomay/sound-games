@@ -8,6 +8,7 @@
  * no needless choice screen for the common case.
  */
 import { ensureMicSession, useSource, type Session } from '../engine/session';
+import { analyseBeatGrid } from '../engine/beat-offline';
 import { createFileSource } from '../engine/source';
 import { el } from '../ui';
 
@@ -74,15 +75,37 @@ export function sourceGate(
       fileInput.value = '';
       if (!file) return;
       setBusy(true);
-      createFileSource(file)
-        .then((source) => {
-          if (disposed) return;
-          onReady(useSource(source));
-        })
-        .catch(() => {
-          if (!disposed) showError('Could not read that file — try a different one.');
-        });
+      void loadFile(file);
     });
+  }
+
+  /**
+   * Decode, then beat-analyse, then hand back a session — one awaited chain
+   * so the gate stays visibly busy through both, not just the decode. Beat-
+   * grid analysis is a real, synchronous cost (~780ms for a three-minute
+   * track per ADR-0010's measurement) that has nowhere else to live: it isn't
+   * file decoding (`source.ts`'s job) and doing it lazily inside `session.ts`
+   * would make every session opener pay for it even when nothing reads
+   * `Frame.beat`. See ADR-0011.
+   */
+  async function loadFile(file: File): Promise<void> {
+    try {
+      const source = await createFileSource(file);
+      if (disposed) return;
+      // Yield one tick so the disabled-button "busy" state actually paints
+      // before the synchronous analysis below blocks the main thread.
+      await yieldToPaint();
+      if (disposed) return;
+      // A file with no findable beat (silence, noise, too short) is
+      // `analyseBeatGrid` returning null, not an error — Frame.beat just
+      // stays NO_BEAT for this session, same as a game that wires up no beat
+      // tracker at all.
+      const beatGrid = analyseBeatGrid(source.buffer);
+      if (disposed) return;
+      onReady(useSource(source, beatGrid));
+    } catch {
+      if (!disposed) showError('Could not read that file — try a different one.');
+    }
   }
 
   const actions = fileButton
@@ -103,4 +126,10 @@ export function sourceGate(
       disposed = true;
     },
   };
+}
+
+/** One macrotask's worth of a yield — enough for the browser to paint the
+ *  "busy" state set just before it's called, before a synchronous block. */
+function yieldToPaint(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0));
 }

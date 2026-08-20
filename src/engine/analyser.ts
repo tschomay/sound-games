@@ -5,12 +5,14 @@
 import { OnsetDetector } from './onset';
 import { PitchDetector } from './pitch';
 import { TimbreClassifier } from './timbre-class';
+import { NO_BEAT } from './beat';
 import {
   DEFAULT_PITCH_RANGE,
   DEFAULT_PROFILE,
   normaliseLevel,
   normalisePitch,
 } from './calibration';
+import type { BeatInput } from './beat-input';
 import type { SuppressionSource } from './output';
 import type { AudioSource, Bands, CalibrationProfile, Frame } from './types';
 
@@ -35,6 +37,15 @@ export interface AnalyserOptions {
    * analyser is the only thing that asks.
    */
   suppression?: SuppressionSource;
+  /**
+   * Consulted each `read()` for this frame's `Frame.beat`. Absent by default,
+   * so every game that doesn't wire one up sees `NO_BEAT` — same "opt-in,
+   * harmless default" shape as `suppression` above. Typed as `BeatInput`
+   * rather than the bare `BeatReader` the trackers implement, because the
+   * causal tracker needs real onset input fed to it every frame to track
+   * anything — see `beat-input.ts`.
+   */
+  beat?: BeatInput;
 }
 
 export class Analyser {
@@ -50,6 +61,7 @@ export class Analyser {
   private readonly onsetDetector: OnsetDetector;
   private readonly timbreClassifier = new TimbreClassifier();
   private readonly suppression?: SuppressionSource;
+  private readonly beatInput?: BeatInput;
   private readonly startedAt: number;
   private lastT = 0;
   /** Held during a gated frame so a frozen level doesn't just read 0. */
@@ -58,6 +70,7 @@ export class Analyser {
   constructor(readonly source: AudioSource, options: AnalyserOptions = {}) {
     const context = source.context;
     this.suppression = options.suppression;
+    this.beatInput = options.beat;
     this.node = context.createAnalyser();
     this.node.fftSize = options.fftSize ?? 2048;
     // Our own detectors do their own smoothing; the analyser's would just add
@@ -117,6 +130,12 @@ export class Analyser {
     // Only the returned classification is suppressed to 'silence'.
     const timbreClass = this.timbreClassifier.classify(zcr, flatness, rawLevel, onset.onset);
 
+    // Same gating as onset/level above, reused here: a beat tracker fed our
+    // own suppressed output would happily lock onto it.
+    const gatedOnset = gated ? false : onset.onset;
+    const gatedOnsetStrength = gated ? 0 : onset.strength;
+    const beat = this.beatInput?.advance(t, gatedOnset, gatedOnsetStrength) ?? NO_BEAT;
+
     return {
       t,
       dt,
@@ -131,15 +150,16 @@ export class Analyser {
         pitch.hz === null
           ? null
           : normalisePitch(pitch.hz, this.profile.pitchRange ?? DEFAULT_PITCH_RANGE),
-      onset: gated ? false : onset.onset,
+      onset: gatedOnset,
       flux: onset.flux,
-      onsetStrength: gated ? 0 : onset.strength,
+      onsetStrength: gatedOnsetStrength,
       centroid: this.centroid(),
       flatness,
       zcr,
       timbreClass: gated ? 'silence' : timbreClass,
       bands: this.bands(),
       gated,
+      beat,
     };
   }
 

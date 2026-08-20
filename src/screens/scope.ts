@@ -13,6 +13,7 @@ import { sourceGate } from './source-picker';
 import { transportBar, type TransportBar } from './transport-bar';
 import { isFileSource } from '../engine/source';
 import type { Analyser } from '../engine/analyser';
+import type { BeatReading } from '../engine/beat';
 
 const FLUX_HISTORY = 200;
 
@@ -31,6 +32,8 @@ export function scopeScreen(root: HTMLElement): Cleanup {
     timbreClass: readoutCell('Timbre class'),
     onsets: readoutCell('Onsets'),
     gated: readoutCell('Gated'),
+    bpm: readoutCell('BPM'),
+    beatConfidence: readoutCell('Beat confidence'),
   };
   const readout = el('div', { class: 'readout' }, ...Object.values(cells).map((c) => c.root));
   const transportSlot = el('div', {});
@@ -70,6 +73,7 @@ export function scopeScreen(root: HTMLElement): Cleanup {
     let onsetCount = 0;
     let onsetFlash = 0;
     let gateFlash = 0;
+    let beatPulse = 0;
 
     return startLoop((dt) => {
       const frame = analyser.read();
@@ -82,6 +86,10 @@ export function scopeScreen(root: HTMLElement): Cleanup {
       onsetFlash = Math.max(0, onsetFlash - dt * 4);
       if (frame.gated) gateFlash = 1;
       gateFlash = Math.max(0, gateFlash - dt * 4);
+      // Decays over ~1/3s — fast enough to read as a pulse tied to this
+      // instant, slow enough to actually be seen at a normal frame rate.
+      if (frame.beat.onBeat) beatPulse = 1;
+      beatPulse = Math.max(0, beatPulse - dt * 3);
 
       flux.push(frame.flux);
       if (flux.length > FLUX_HISTORY) flux.shift();
@@ -104,6 +112,13 @@ export function scopeScreen(root: HTMLElement): Cleanup {
         ctx.fillRect(0, 0, width, height);
       }
 
+      // The actual "stable beat grid" visualisation Phase 6's done-when asks
+      // for: a third colour again, and a shape (a sweeping ring plus a pulse)
+      // rather than a binary flash, because `beatPhase` is continuous and a
+      // human judges "locked on" by watching it sweep smoothly, not by a
+      // single yes/no per beat.
+      drawBeatPulse(ctx, frame.beat, beatPulse, width);
+
       cells.level.set(frame.level.toFixed(2));
       cells.db.set(`${Math.round(frame.db)}`);
       cells.pitch.set(frame.pitchHz ? `${Math.round(frame.pitchHz)} Hz` : '–');
@@ -115,6 +130,8 @@ export function scopeScreen(root: HTMLElement): Cleanup {
       cells.timbreClass.set(frame.timbreClass);
       cells.onsets.set(String(onsetCount));
       cells.gated.set(frame.gated ? 'yes' : 'no');
+      cells.bpm.set(frame.beat.bpm !== null ? String(Math.round(frame.beat.bpm)) : '–');
+      cells.beatConfidence.set(frame.beat.confidence.toFixed(2));
     });
   }
 
@@ -202,6 +219,63 @@ function drawFlux(
   ctx.stroke();
   label(ctx, 'spectral flux', 6, 14);
   ctx.restore();
+}
+
+const BEAT_COLOUR = '196, 132, 252'; // violet — distinct from onset green and gated red
+
+/**
+ * The beat pulse: a ring that sweeps continuously with `beatPhase` plus a
+ * disc that snaps bright on the `onBeat` edge and decays.
+ *
+ * The sweep is the actual "is this locked on" signal — a human watching it
+ * can tell a steady, evenly-paced rotation (locked to the music's actual
+ * pulse) from one that jitters, stalls, or jumps (drifting or wrong) far more
+ * easily than from a per-beat flash alone, which is why this is a continuous
+ * shape and not just another flash like the two above. An empty outline with
+ * no fill or disc is itself informative: `bpm: null` reads as "found
+ * nothing", not as a broken screen.
+ */
+function drawBeatPulse(
+  ctx: CanvasRenderingContext2D,
+  beat: BeatReading,
+  pulse: number,
+  width: number,
+): void {
+  const cx = width - 46;
+  const cy = 46;
+  const radius = 26;
+
+  ctx.save();
+  ctx.translate(cx, cy);
+
+  ctx.strokeStyle = `rgba(${BEAT_COLOUR}, 0.25)`;
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.arc(0, 0, radius, 0, Math.PI * 2);
+  ctx.stroke();
+
+  if (beat.bpm !== null && beat.beatPhase !== null) {
+    const start = -Math.PI / 2;
+    const end = start + beat.beatPhase * Math.PI * 2;
+    // Opacity tracks confidence, same "trust this less" convention the
+    // readout cells use — a sweeping-but-dim ring means "found a tempo, but
+    // don't believe it yet".
+    ctx.strokeStyle = `rgba(${BEAT_COLOUR}, ${0.35 + beat.confidence * 0.65})`;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(0, 0, radius, start, end);
+    ctx.stroke();
+  }
+
+  if (pulse > 0) {
+    ctx.fillStyle = `rgba(${BEAT_COLOUR}, ${pulse * 0.85})`;
+    ctx.beginPath();
+    ctx.arc(0, 0, radius * (0.35 + 0.25 * pulse), 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.restore();
+  label(ctx, 'beat', cx - 14, cy + radius + 16);
 }
 
 function label(ctx: CanvasRenderingContext2D, text: string, x: number, y: number): void {
