@@ -5,6 +5,7 @@ import { sonarMaze } from './sonar-maze';
 import { clapRunner } from './clap-runner';
 import { voiceLineRider } from './voice-line-rider';
 import { vowelSteeringSpike } from './vowel-steering-spike';
+import { ecosystemGarden } from './ecosystem-garden';
 import type { GameDefinition } from '../engine/game';
 
 export const GAMES: readonly GameDefinition[] = [
@@ -14,6 +15,7 @@ export const GAMES: readonly GameDefinition[] = [
   clapRunner,
   voiceLineRider,
   vowelSteeringSpike,
+  ecosystemGarden,
 ];
 
 export function findGame(id: string): GameDefinition | undefined {
