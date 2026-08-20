@@ -5,10 +5,13 @@
  * devices and rooms, and you cannot tune a detector you cannot see. When a game
  * misreads someone, this is the screen that says why.
  */
-import { ensureMicSession, stopSession } from '../engine/session';
+import { stopSession, type Session } from '../engine/session';
 import { hzToNote } from '../engine/pitch';
 import { createSurface, startLoop } from '../engine/canvas';
-import { el, overlay, readoutCell, topbar, type Cleanup } from '../ui';
+import { el, readoutCell, topbar, type Cleanup } from '../ui';
+import { sourceGate } from './source-picker';
+import { transportBar, type TransportBar } from './transport-bar';
+import { isFileSource } from '../engine/source';
 import type { Analyser } from '../engine/analyser';
 
 const FLUX_HISTORY = 200;
@@ -30,31 +33,36 @@ export function scopeScreen(root: HTMLElement): Cleanup {
     gated: readoutCell('Gated'),
   };
   const readout = el('div', { class: 'readout' }, ...Object.values(cells).map((c) => c.root));
+  const transportSlot = el('div', {});
 
-  root.appendChild(el('div', { class: 'screen' }, topbar('Signal scope'), stage, readout));
+  root.appendChild(
+    el('div', { class: 'screen' }, topbar('Signal scope'), stage, transportSlot, readout),
+  );
 
   let stopRendering: (() => void) | null = null;
   let surface: ReturnType<typeof createSurface> | null = null;
+  let transport: TransportBar | null = null;
   let disposed = false;
 
-  const gate = overlay(
-    'Watch the microphone signal live: waveform, spectrum, and every detector.',
-    'Open microphone',
-    () => void begin(),
+  const gate = sourceGate(
+    'Watch the waveform, spectrum, and every detector live — from the microphone or a loaded file.',
+    (session) => {
+      if (disposed) return;
+      gate.root.remove();
+      begin(session);
+    },
+    { allowFile: true },
   );
   stage.appendChild(gate.root);
 
-  async function begin(): Promise<void> {
-    gate.setBusy(true);
-    try {
-      const session = await ensureMicSession();
-      if (disposed) return;
-      gate.root.remove();
-      surface = createSurface(stage);
-      stopRendering = draw(session.analyser, surface);
-    } catch (error) {
-      gate.showError(error instanceof Error ? error.message : 'Could not open the microphone.');
+  function begin(session: Session): void {
+    surface = createSurface(stage);
+    if (isFileSource(session.source)) {
+      session.source.play();
+      transport = transportBar(session.source);
+      transportSlot.appendChild(transport.root);
     }
+    stopRendering = draw(session.analyser, surface);
   }
 
   function draw(analyser: Analyser, target: ReturnType<typeof createSurface>): () => void {
@@ -112,7 +120,9 @@ export function scopeScreen(root: HTMLElement): Cleanup {
 
   return () => {
     disposed = true;
+    gate.dispose();
     stopRendering?.();
+    transport?.dispose();
     surface?.dispose();
     stopSession();
     root.replaceChildren();

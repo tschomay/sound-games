@@ -242,6 +242,47 @@ button:disabled {
   color: var(--muted);
 }
 
+/* Source picker: mic vs. a loaded file, on the gate overlay. */
+.gate-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+  max-width: 18rem;
+}
+
+.file-input {
+  display: none;
+}
+
+/* Playback transport for a loaded file source. */
+.transport {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 0.75rem;
+  border-top: 1px solid var(--panel-edge);
+  flex: none;
+}
+
+.transport-play {
+  flex: none;
+  min-width: 2.75rem;
+  padding: 0.4rem;
+}
+
+.transport-seek {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--accent);
+}
+
+.transport-time {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.8rem;
+}
+
 @media (min-width: 700px) {
   h1 {
     font-size: 2rem;

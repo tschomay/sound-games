@@ -9,7 +9,10 @@ import { ensureMicSession, stopSession, type Session } from '../engine/session';
 import { createSurface, startLoop, type Surface } from '../engine/canvas';
 import { DEFAULT_PROFILE, loadProfile } from '../engine/calibration';
 import { recordScore } from '../engine/scores';
+import { isFileSource } from '../engine/source';
 import { el, navigate, overlay, topbar, type Cleanup } from '../ui';
+import { sourceGate } from './source-picker';
+import { transportBar, type TransportBar } from './transport-bar';
 import type { CalibrationProfile } from '../engine/types';
 import type { GameDefinition } from '../engine/game';
 
@@ -25,11 +28,15 @@ export function playScreen(root: HTMLElement, definition: GameDefinition): Clean
   }
 
   const stage = el('div', { class: 'stage' });
-  root.appendChild(el('div', { class: 'screen' }, topbar(definition.title), stage));
+  const transportSlot = el('div', {});
+  root.appendChild(
+    el('div', { class: 'screen' }, topbar(definition.title), stage, transportSlot),
+  );
 
   const game = definition.create(profile ?? DEFAULT_PROFILE);
   let session: Session | null = null;
   let surface: Surface | null = null;
+  let transport: TransportBar | null = null;
   let stopLoop: (() => void) | null = null;
   let resultsPanel: HTMLElement | null = null;
   let pausePanel: HTMLElement | null = null;
@@ -38,8 +45,35 @@ export function playScreen(root: HTMLElement, definition: GameDefinition): Clean
   /** The phase we last reacted to, so results are shown once per round. */
   let seenPhase = game.phase;
 
-  const gate = overlay(definition.intro, 'Open microphone', () => void begin(), gateDetail(definition));
-  stage.appendChild(gate.root);
+  // Only games that actually declare file support get the mic-or-file choice
+  // — every other game keeps the exact one-button gate it has always had.
+  const supportsFile = definition.sources.includes('file');
+  let disposeGate: (() => void) | null = null;
+  let gateRoot: HTMLElement;
+
+  if (supportsFile) {
+    const gate = sourceGate(definition.intro, (opened) => onSessionReady(opened), {
+      detail: gateDetail(definition),
+      allowFile: true,
+    });
+    gateRoot = gate.root;
+    disposeGate = gate.dispose;
+  } else {
+    const gate = overlay(definition.intro, 'Open microphone', () => void begin(), gateDetail(definition));
+    gateRoot = gate.root;
+
+    async function begin(): Promise<void> {
+      gate.setBusy(true);
+      try {
+        const opened = await ensureMicSession();
+        onSessionReady(opened);
+      } catch (error) {
+        if (disposed) return;
+        gate.showError(error instanceof Error ? error.message : 'Could not open the microphone.');
+      }
+    }
+  }
+  stage.appendChild(gateRoot);
 
   const readyBanner = el(
     'div',
@@ -48,21 +82,20 @@ export function playScreen(root: HTMLElement, definition: GameDefinition): Clean
     el('span', { text: game.readyHint }),
   );
 
-  async function begin(): Promise<void> {
-    gate.setBusy(true);
-    try {
-      session = await ensureMicSession();
-      if (disposed) return;
-      // Build everything before dismissing the gate, so a failure here still
-      // has somewhere to report itself.
-      surface = createSurface(stage);
-      stage.appendChild(readyBanner);
-      gate.root.remove();
-      startFrameLoop();
-    } catch (error) {
-      if (disposed) return;
-      gate.showError(error instanceof Error ? error.message : 'Could not open the microphone.');
+  function onSessionReady(opened: Session): void {
+    if (disposed) return;
+    session = opened;
+    // Build everything before dismissing the gate, so a failure here still
+    // has somewhere to report itself.
+    surface = createSurface(stage);
+    if (isFileSource(opened.source)) {
+      opened.source.play();
+      transport = transportBar(opened.source);
+      transportSlot.appendChild(transport.root);
     }
+    stage.appendChild(readyBanner);
+    gateRoot.remove();
+    startFrameLoop();
   }
 
   function startFrameLoop(): void {
@@ -158,8 +191,10 @@ export function playScreen(root: HTMLElement, definition: GameDefinition): Clean
 
   return () => {
     disposed = true;
+    disposeGate?.();
     document.removeEventListener('visibilitychange', onVisibility);
     stopFrameLoop();
+    transport?.dispose();
     surface?.dispose();
     stopSession();
     root.replaceChildren();
