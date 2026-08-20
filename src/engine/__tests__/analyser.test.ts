@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { Analyser, zeroCrossingRate } from '../analyser';
 import { OutputBus } from '../output';
+import { NO_BEAT, type BeatReading } from '../beat';
+import type { BeatInput } from '../beat-input';
 import { FakeAudioContext, fakeAudioSource } from './fake-audio-context';
 
 const fakeBuffer = {} as AudioBuffer;
@@ -154,5 +156,80 @@ describe('Analyser timbre classification wiring', () => {
 
     expect(frame.gated).toBe(true);
     expect(frame.timbreClass).toBe('silence');
+  });
+});
+
+/** Records every call it receives instead of doing any real tracking. */
+class RecordingBeatInput implements BeatInput {
+  calls: Array<{ t: number; onset: boolean; onsetStrength: number }> = [];
+  resetCount = 0;
+  next: BeatReading = NO_BEAT;
+
+  advance(t: number, onset: boolean, onsetStrength: number): BeatReading {
+    this.calls.push({ t, onset, onsetStrength });
+    return this.next;
+  }
+
+  reset(): void {
+    this.resetCount++;
+  }
+}
+
+/**
+ * Wiring only — `beat-input.test.ts` covers what `CausalBeatInput` and
+ * `FileBeatInput` actually do with what they're given. This just confirms
+ * `Analyser.read()` has one call site that always feeds it and that nothing
+ * currently reads `Frame.beat` regresses to something other than `NO_BEAT`.
+ */
+describe('Analyser beat wiring', () => {
+  it('reports NO_BEAT when no beat input is wired in, same as every current game sees', () => {
+    const context = new FakeAudioContext();
+    const source = fakeAudioSource(context);
+    const analyser = new Analyser(source);
+
+    expect(analyser.read().beat).toBe(NO_BEAT);
+  });
+
+  it('feeds the beat input this frame\'s own t/onset/onsetStrength, and returns what it hands back', () => {
+    const context = new FakeAudioContext();
+    const source = fakeAudioSource(context);
+    const beatInput = new RecordingBeatInput();
+    const reading: BeatReading = { bpm: 128, beatPhase: 0.5, onBeat: true, confidence: 0.8, beatIndex: 3 };
+    beatInput.next = reading;
+    const analyser = new Analyser(source, { beat: beatInput });
+
+    context.advance(0.5);
+    const frame = analyser.read();
+
+    expect(beatInput.calls).toHaveLength(1);
+    expect(beatInput.calls[0].t).toBeCloseTo(frame.t, 10);
+    expect(beatInput.calls[0].onset).toBe(frame.onset);
+    expect(beatInput.calls[0].onsetStrength).toBe(frame.onsetStrength);
+    expect(frame.beat).toBe(reading);
+  });
+
+  it('suppresses the onset/strength fed to the beat input while gated, same as Frame.onset', () => {
+    const context = new FakeAudioContext();
+    const source = fakeAudioSource(context);
+    const output = new OutputBus(context as unknown as AudioContext);
+    const beatInput = new RecordingBeatInput();
+    const analyser = new Analyser(source, { suppression: output, beat: beatInput });
+
+    context.analyserNode.amplitude = 0.02;
+    context.analyserNode.spectrumDb = -70;
+    analyser.read();
+
+    output.playSfx({} as AudioBuffer, { suppressMs: 200 });
+    // Loud and broadband — exactly what would otherwise trip the onset
+    // detector, same setup as the gating test above.
+    context.analyserNode.amplitude = 0.9;
+    context.analyserNode.spectrumDb = -10;
+    context.advance(0.05);
+    const frame = analyser.read();
+
+    expect(frame.gated).toBe(true);
+    const lastCall = beatInput.calls[beatInput.calls.length - 1];
+    expect(lastCall.onset).toBe(false);
+    expect(lastCall.onsetStrength).toBe(0);
   });
 });
