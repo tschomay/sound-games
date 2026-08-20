@@ -93,6 +93,14 @@ The most original idea here and the one that would feel like magic if it lands.
   centroid moves with pitch, so the two axes will bleed into each other. Needs a
   spike before it gets committed to.
 
+  The spike is built and live: `games/vowel-steering-spike/` (see ADR-0008 and
+  the roadmap's Phase 5 entry). Status stays `planned` here on purpose — the
+  spike answers "does this work" only with a human actually humming into a
+  real microphone on a real device, which is a call this codebase can't make
+  on its own. Once that playtest happens, this entry moves to `built`
+  (scheduled as a real game) or `parked` (the bleed is too strong) — not
+  before.
+
 ## A6. Voice Line Rider — `built`
 
 Hum for a few seconds; your pitch contour is captured as a terrain line; a marble
