@@ -14,6 +14,7 @@ import { ensureMicSession, refreshProfile, stopSession } from '../engine/session
 import { loadProfile, padPitchRange, saveProfile } from '../engine/calibration';
 import { hzToNote } from '../engine/pitch';
 import { startLoop } from '../engine/canvas';
+import { GAMES } from '../games/registry';
 import { el, navigate, overlay, topbar, type Cleanup } from '../ui';
 import type { CalibrationProfile, Frame, PitchRange } from '../engine/types';
 
@@ -106,7 +107,7 @@ export function calibrateScreen(root: HTMLElement): Cleanup {
 export function voiceSetupScreen(root: HTMLElement): Cleanup {
   const existing = loadProfile();
   if (!existing) {
-    navigate('calibrate');
+    navigate('calibrate', { replace: true });
     return () => {};
   }
   return calibrationFlow(root, 'voice', existing);
@@ -296,11 +297,14 @@ function calibrationFlow(
     const range = profile?.pitchRange ?? null;
     const actions: HTMLElement[] = [];
 
-    if (range) {
-      const play = el('button', { class: 'btn-primary', text: 'Play Hum Flyer' });
-      play.addEventListener('click', () => navigate('hum-flyer'));
+    // Whichever voice game exists, rather than a hardcoded id — the registry is
+    // there precisely so screens don't have to know game names.
+    const unlocked = range ? GAMES.find((game) => game.requires === 'pitchRange') : undefined;
+    if (unlocked) {
+      const play = el('button', { class: 'btn-primary', text: `Play ${unlocked.title}` });
+      play.addEventListener('click', () => navigate(unlocked.id));
       actions.push(play);
-    } else {
+    } else if (!range) {
       const add = el('button', { class: 'btn-primary', text: 'Add voice control' });
       add.addEventListener('click', () => runPhase(VOICE_STEPS, finishVoice));
       actions.push(add);

@@ -25,8 +25,20 @@ export function el<K extends keyof HTMLElementTagNameMap>(
   return node;
 }
 
-export function navigate(route: string): void {
-  window.location.hash = route ? `#/${route}` : '#/';
+export interface NavigateOptions {
+  /**
+   * Replace the current history entry instead of pushing a new one. Redirects
+   * must use this: otherwise the route that bounced you sits in history right
+   * behind its target, and pressing Back lands on it and bounces you forward
+   * again — a dead Back button.
+   */
+  replace?: boolean;
+}
+
+export function navigate(route: string, options: NavigateOptions = {}): void {
+  const hash = route ? `#/${route}` : '#/';
+  if (options.replace) window.location.replace(hash);
+  else window.location.hash = hash;
 }
 
 /** A back-to-menu header. Every screen except the menu gets one. */

@@ -87,7 +87,6 @@ export class HumFlyer {
   /** Flyer height, 0 at the bottom of the band, 1 at the top. */
   height = 0.5;
   score = 0;
-  best = 0;
   /** How far the course has scrolled, in world units. */
   distance = 0;
   gates: Gate[] = [];
@@ -228,7 +227,6 @@ export class HumFlyer {
         gate.passed = true;
         if (gate.cleared) {
           this.score++;
-          this.best = Math.max(this.best, this.score);
           this.celebration = 1;
         }
         continue;

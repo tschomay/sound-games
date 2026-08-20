@@ -99,12 +99,4 @@ describe('HumFlyer', () => {
     expect(game.distance).toBe(0);
     expect(game.height).toBe(0.5);
   });
-
-  it('remembers your best score across rounds', () => {
-    const game = new HumFlyer();
-    flyWell(game, 60 * 20);
-    const best = game.score;
-    game.reset();
-    expect(game.best).toBe(best);
-  });
 });

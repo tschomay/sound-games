@@ -16,7 +16,9 @@ const SCREENS: Record<string, Screen> = {
 };
 
 function screenFor(route: string): Screen {
-  const fixed = SCREENS[route];
+  // hasOwn, not a plain lookup: `#/toString` would otherwise resolve an
+  // Object.prototype member and hand the router a function that is not a screen.
+  const fixed = Object.hasOwn(SCREENS, route) ? SCREENS[route] : undefined;
   if (fixed) return fixed;
   const game = findGame(route);
   if (game) return (root) => playScreen(root, game);
@@ -39,10 +41,18 @@ window.addEventListener('hashchange', render);
 
 // A backgrounded tab gets no microphone audio anyway, and holding the mic open
 // leaves the recording indicator lit, which reads as spyware.
-window.addEventListener('pagehide', () => {
+window.addEventListener('pagehide', (event) => {
+  stopSession();
+  // A page frozen into the back/forward cache is restored with this exact DOM
+  // and no script re-run, so tearing the screen down here would bring the
+  // player back to a blank page with no way out but a reload.
+  if (event.persisted) return;
   teardown?.();
   teardown = null;
-  stopSession();
+});
+
+window.addEventListener('pageshow', (event) => {
+  if (event.persisted) render();
 });
 
 render();

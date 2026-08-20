@@ -5,17 +5,22 @@
  * results screen and high scores — so a game only implements rules and a
  * picture. See `engine/game.ts`.
  */
-import { ensureMicSession, stopSession } from '../engine/session';
+import { ensureMicSession, stopSession, type Session } from '../engine/session';
 import { createSurface, startLoop, type Surface } from '../engine/canvas';
 import { DEFAULT_PROFILE, loadProfile } from '../engine/calibration';
-import { bestScore, recordScore } from '../engine/scores';
+import { recordScore } from '../engine/scores';
 import { el, navigate, overlay, topbar, type Cleanup } from '../ui';
+import type { CalibrationProfile } from '../engine/types';
 import type { GameDefinition } from '../engine/game';
 
 export function playScreen(root: HTMLElement, definition: GameDefinition): Cleanup {
   const profile = loadProfile();
   if (!meetsRequirement(definition, profile)) {
-    navigate(profile && definition.requires === 'pitchRange' ? 'voice-setup' : 'calibrate');
+    // Replace, so the route that bounced us doesn't sit in history waiting to
+    // bounce us again on Back.
+    navigate(profile && definition.requires === 'pitchRange' ? 'voice-setup' : 'calibrate', {
+      replace: true,
+    });
     return () => {};
   }
 
@@ -23,8 +28,11 @@ export function playScreen(root: HTMLElement, definition: GameDefinition): Clean
   root.appendChild(el('div', { class: 'screen' }, topbar(definition.title), stage));
 
   const game = definition.create(profile ?? DEFAULT_PROFILE);
+  let session: Session | null = null;
   let surface: Surface | null = null;
   let stopLoop: (() => void) | null = null;
+  let resultsPanel: HTMLElement | null = null;
+  let pausePanel: HTMLElement | null = null;
   let disposed = false;
   let paused = false;
   /** The phase we last reacted to, so results are shown once per round. */
@@ -43,88 +51,131 @@ export function playScreen(root: HTMLElement, definition: GameDefinition): Clean
   async function begin(): Promise<void> {
     gate.setBusy(true);
     try {
-      const session = await ensureMicSession();
+      session = await ensureMicSession();
       if (disposed) return;
-      gate.root.remove();
+      // Build everything before dismissing the gate, so a failure here still
+      // has somewhere to report itself.
       surface = createSurface(stage);
       stage.appendChild(readyBanner);
-      stopLoop = startLoop((dt) => {
-        const frame = session.analyser.read();
-        if (!paused) game.update(dt, frame);
-        if (surface) game.render(surface);
-        syncPhase();
-      });
+      gate.root.remove();
+      startFrameLoop();
     } catch (error) {
+      if (disposed) return;
       gate.showError(error instanceof Error ? error.message : 'Could not open the microphone.');
     }
+  }
+
+  function startFrameLoop(): void {
+    const active = session;
+    if (stopLoop || !active) return;
+    stopLoop = startLoop((dt) => {
+      const frame = active.analyser.read();
+      if (!paused) game.update(dt, frame);
+      if (surface) game.render(surface);
+      syncPhase();
+    });
+  }
+
+  function stopFrameLoop(): void {
+    stopLoop?.();
+    stopLoop = null;
   }
 
   function syncPhase(): void {
     if (game.phase === seenPhase) return;
     seenPhase = game.phase;
     readyBanner.style.display = game.phase === 'ready' ? '' : 'none';
+    // Any transition out of 'over' means a new round: never leave a stale
+    // results panel sitting on top of live play.
+    if (game.phase !== 'over') dismissResults();
     if (game.phase === 'over') showResults();
   }
 
+  function dismissResults(): void {
+    resultsPanel?.remove();
+    resultsPanel = null;
+  }
+
+  function dismissPause(): void {
+    pausePanel?.remove();
+    pausePanel = null;
+    paused = false;
+  }
+
   function showResults(): void {
-    const score = game.score;
-    const beaten = recordScore(definition.id, score);
-    const best = bestScore(definition.id);
+    // Nothing left to react to, and analysing microphone audio frame after
+    // frame behind a static panel is pure waste.
+    stopFrameLoop();
+    dismissPause();
+
+    const { best, beaten } = recordScore(definition.id, game.score);
 
     const again = el('button', { class: 'btn-primary', text: 'Play again' });
-    again.addEventListener('click', () => {
-      panel.remove();
-      game.reset();
-      // reset() puts the game back to 'ready'; adopt that without re-showing
-      // results for the round that just ended.
-      seenPhase = game.phase;
-      readyBanner.querySelector('span')!.textContent = game.readyHint;
-      readyBanner.style.display = '';
-    });
+    again.addEventListener('click', playAgain);
     const back = el('button', { text: 'Back to games' });
     back.addEventListener('click', () => navigate(''));
 
-    const panel = el(
+    resultsPanel = el(
       'div',
       { class: 'overlay' },
-      el('h1', { text: definition.formatScore(score) }),
-      el('p', {
-        text: beaten ? 'A new best.' : `Best so far: ${definition.formatScore(best)}.`,
-      }),
+      el('h1', { text: definition.formatScore(game.score) }),
+      el('p', { text: resultDetail(definition, best, beaten) }),
       again,
       back,
     );
-    stage.appendChild(panel);
+    stage.appendChild(resultsPanel);
+  }
+
+  function playAgain(): void {
+    dismissResults();
+    dismissPause();
+    game.reset();
+    // Adopt whatever reset() produced rather than assuming 'ready', so a game
+    // that starts a round immediately doesn't get a banner over live play.
+    seenPhase = game.phase;
+    const hint = readyBanner.querySelector('span');
+    if (hint) hint.textContent = game.readyHint;
+    readyBanner.style.display = game.phase === 'ready' ? '' : 'none';
+    startFrameLoop();
   }
 
   // A backgrounded tab gets no microphone audio, so a round left running while
   // the player is elsewhere would quietly fail on their behalf.
   const onVisibility = (): void => {
-    if (document.visibilityState !== 'hidden' || game.phase !== 'playing' || paused) return;
+    if (document.visibilityState !== 'hidden') return;
+    if (paused || surface === null || game.phase === 'over') return;
     paused = true;
     const resume = el('button', { class: 'btn-primary', text: 'Resume' });
-    const panel = el('div', { class: 'overlay' }, el('h1', { text: 'Paused' }), resume);
     resume.addEventListener('click', () => {
-      panel.remove();
-      paused = false;
+      dismissPause();
+      // The context is often suspended by the time a tab comes back.
+      void session?.source.context.resume();
     });
-    stage.appendChild(panel);
+    pausePanel = el('div', { class: 'overlay' }, el('h1', { text: 'Paused' }), resume);
+    stage.appendChild(pausePanel);
   };
   document.addEventListener('visibilitychange', onVisibility);
 
   return () => {
     disposed = true;
     document.removeEventListener('visibilitychange', onVisibility);
-    stopLoop?.();
+    stopFrameLoop();
     surface?.dispose();
     stopSession();
     root.replaceChildren();
   };
 }
 
+function resultDetail(definition: GameDefinition, best: number, beaten: boolean): string {
+  if (beaten) return 'A new best.';
+  // A first round that scores nothing shouldn't be told its best is nothing.
+  if (best <= 0) return 'Give it another go.';
+  return `Best so far: ${definition.formatScore(best)}.`;
+}
+
 function meetsRequirement(
   definition: GameDefinition,
-  profile: ReturnType<typeof loadProfile>,
+  profile: CalibrationProfile | null,
 ): boolean {
   if (definition.requires === null) return true;
   if (profile === null) return false;

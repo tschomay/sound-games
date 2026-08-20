@@ -48,6 +48,8 @@ class HumFlyerGame implements Game {
 
   reset(): void {
     this.rules.reset();
+    // Otherwise the pitch guide draws at last round's note for a frame.
+    this.pitchNorm = null;
   }
 
   render(surface: Surface): void {

@@ -23,18 +23,27 @@ export function bestScore(gameId: string): number {
   return read()[gameId] ?? 0;
 }
 
-/** Records a score if it beats the stored one. Returns true when it did. */
-export function recordScore(gameId: string, score: number): boolean {
-  if (!Number.isFinite(score)) return false;
+export interface ScoreResult {
+  /** The best score on file after this one was considered. */
+  best: number;
+  /** Whether this score set a new best. */
+  beaten: boolean;
+}
+
+/** Records a score if it beats the stored one, and reports the resulting best. */
+export function recordScore(gameId: string, score: number): ScoreResult {
   const scores = read();
-  if ((scores[gameId] ?? 0) >= score) return false;
+  const previous = scores[gameId] ?? 0;
+  if (!Number.isFinite(score) || previous >= score) {
+    return { best: previous, beaten: false };
+  }
   scores[gameId] = score;
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(scores));
   } catch {
     // Private browsing — the score just won't persist.
   }
-  return true;
+  return { best: score, beaten: true };
 }
 
 export function clearScores(): void {
