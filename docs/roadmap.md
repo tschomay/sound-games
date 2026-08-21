@@ -724,6 +724,53 @@ check that claim.
 **Done when** someone can install it, hand their phone to a friend, and have that
 friend understand what to do without being told.
 
+**PWA + first-run explainer shipped:** the first two of this phase's five
+"Ships" bullets. `public/manifest.webmanifest` (name, short_name, a plain
+microphone-glyph 192×192/512×512 PNG pair matching the existing favicon's
+dark-background style, `theme_color`/`background_color` both `#0b0f14`,
+`display: 'standalone'`, `start_url`/`scope` set to work with hash routing)
+plus `public/sw.js`, a hand-rolled service worker — no Workbox, no precache-
+manifest build plugin, per this project's general "build it yourself"
+convention — that caches the app shell on `install` by fetching the live
+`index.html` and regex-scraping the hashed `/assets/...` URLs it currently
+references (nothing to hand-maintain across builds), then serves the document
+network-first (so an online player always gets the current deploy) and every
+hashed asset cache-first (content-hashed, so they can never go stale).
+`src/engine/service-worker.ts`'s `registerServiceWorker` is called from
+`main.ts`, gated on `!import.meta.env.DEV` so `npm run dev` is never affected.
+Verified with a real production build (`npm run build` + `npm run preview`)
+driven by headless Chromium (Playwright): the manifest is reachable, the
+service worker reaches `activated`, and — reloading with the browser
+context's network fully disabled after one prior visit — the app still
+renders and can navigate between routes, not a browser error page. See
+ADR-0014 for the full design, including why network-first/cache-first is the
+direct answer to "could this ever serve a stale app forever" (no, only when
+genuinely offline).
+
+The first-run explainer: `src/engine/first-run.ts` is a versioned localStorage
+flag (`engine/calibration.ts`'s try/catch pattern), and `main.ts`'s `render()`
+checks it before routing anywhere — unseen, it renders
+`screens/first-run.ts`'s `firstRunScreen` instead of whatever route was
+requested, styled with the same `el()`/`.screen`/`.stack` shell furniture
+every other screen uses. Its copy explains, in three short lines, that every
+game listens to the mic, that everything is analysed on-device and never
+recorded or sent anywhere (echoing `README.md`'s existing framing), and that a
+browser permission prompt is coming next and that's normal. Dismissing it
+("Got it") marks the flag and re-renders the *original* route the player
+asked for — verified with Playwright that a first-ever visit that deep-links
+straight to a specific game or the scope shows the explainer first and then
+lands exactly there, not the menu. It never appears again for a returning
+visitor, and it is not a replacement for any game's own mic gate
+(`ui.ts`'s `overlay()`, `source-picker.ts`'s `sourceGate`) — those are
+unchanged; the explainer sits strictly upstream of all of them, once.
+
+**What remains open:** three of this phase's five bullets are a separate,
+later task — per-device latency compensation, an accessibility statement per
+game, and score sharing. Also unverified here, matching every prior phase's
+honest caveat about real hardware: actually installing the PWA and seeing its
+icon on a real phone's home screen (Safari's and Android Chrome's install
+flows were not exercised by anything in this sandboxed environment).
+
 ---
 
 ## Cross-cutting, continuously
