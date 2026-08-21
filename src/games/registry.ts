@@ -7,6 +7,7 @@ import { voiceLineRider } from './voice-line-rider';
 import { vowelSteeringSpike } from './vowel-steering-spike';
 import { ecosystemGarden } from './ecosystem-garden';
 import { rhythmGatedCombat } from './rhythm-gated-combat';
+import { dropSiege } from './drop-siege';
 import type { GameDefinition } from '../engine/game';
 
 export const GAMES: readonly GameDefinition[] = [
@@ -18,6 +19,7 @@ export const GAMES: readonly GameDefinition[] = [
   vowelSteeringSpike,
   ecosystemGarden,
   rhythmGatedCombat,
+  dropSiege,
 ];
 
 export function findGame(id: string): GameDefinition | undefined {

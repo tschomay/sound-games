@@ -6,6 +6,15 @@
  * When a game (or the scope) has no use for a file, `allowFile` is left
  * false and this renders exactly the old single "Open microphone" button —
  * no needless choice screen for the common case.
+ *
+ * `allowMic` defaults true and exists for the opposite edge: Drop Siege
+ * (`docs/ideas.md` B2) is the first `GameDefinition` whose `sources` is
+ * `['file']` alone, no mic option at all — "knowing a boss arrives at the
+ * drop requires seeing the whole track in advance, which live mic
+ * fundamentally cannot do." Before this only `allowFile` existed, and it only
+ * ever *added* the file button alongside the mic one, so a file-only game had
+ * no way to get a gate without a microphone button that would have opened a
+ * session type the game can't use. See `play.ts`'s call site.
  */
 import { ensureMicSession, useSource, type Session } from '../engine/session';
 import { analyseBeatGrid } from '../engine/beat-offline';
@@ -16,6 +25,10 @@ export interface SourceGateOptions {
   detail?: string;
   /** Offer "choose a file" alongside the microphone. Default false. */
   allowFile?: boolean;
+  /** Offer the microphone at all. Default true — set false for a game whose
+   *  `sources` is `['file']` alone. Requires `allowFile: true`; a gate with
+   *  neither would have no way to ever start a session. */
+  allowMic?: boolean;
 }
 
 export interface SourceGate {
@@ -30,13 +43,21 @@ export function sourceGate(
   options: SourceGateOptions = {},
 ): SourceGate {
   let disposed = false;
+  const allowMic = options.allowMic ?? true;
 
   const text = el('p', { text: message });
-  const micButton = el('button', {
-    class: 'btn-primary',
-    text: options.allowFile ? 'Use microphone' : 'Open microphone',
-  });
-  const fileButton = options.allowFile ? el('button', { text: 'Choose a file' }) : null;
+  const micButton = allowMic
+    ? el('button', {
+        class: 'btn-primary',
+        text: options.allowFile ? 'Use microphone' : 'Open microphone',
+      })
+    : null;
+  // Primary styling follows whichever button is the sole way to start a
+  // session: the mic when present (unchanged from before `allowMic`
+  // existed), the file button when it's the only one offered at all.
+  const fileButton = options.allowFile
+    ? el('button', { class: allowMic ? '' : 'btn-primary', text: 'Choose a file' })
+    : null;
   const fileInput = el('input', {
     type: 'file',
     accept: 'audio/*',
@@ -44,7 +65,7 @@ export function sourceGate(
   }) as HTMLInputElement;
 
   function setBusy(busy: boolean): void {
-    micButton.disabled = busy;
+    if (micButton) micButton.disabled = busy;
     if (fileButton) fileButton.disabled = busy;
   }
 
@@ -54,7 +75,7 @@ export function sourceGate(
     setBusy(false);
   }
 
-  micButton.addEventListener('click', () => {
+  micButton?.addEventListener('click', () => {
     setBusy(true);
     ensureMicSession()
       .then((session) => {
@@ -108,9 +129,13 @@ export function sourceGate(
     }
   }
 
-  const actions = fileButton
-    ? el('div', { class: 'gate-actions' }, micButton, fileButton, fileInput)
-    : micButton;
+  // Exactly one lone button (the common case, either mic-only or, now,
+  // file-only) skips the 'gate-actions' box only one of them ever needed;
+  // both present is the only case that's actually a choice.
+  const actions =
+    micButton && fileButton
+      ? el('div', { class: 'gate-actions' }, micButton, fileButton, fileInput)
+      : (micButton ?? el('div', {}, fileButton, fileInput));
 
   const root = el(
     'div',
