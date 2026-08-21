@@ -3,9 +3,14 @@ import { menuScreen } from './screens/menu';
 import { calibrateScreen, voiceSetupScreen } from './screens/calibrate';
 import { scopeScreen } from './screens/scope';
 import { playScreen } from './screens/play';
+import { firstRunScreen } from './screens/first-run';
 import { findGame } from './games/registry';
 import { stopSession } from './engine/session';
+import { hasSeenFirstRun, markFirstRunSeen } from './engine/first-run';
+import { registerServiceWorker } from './engine/service-worker';
 import type { Screen } from './ui';
+
+registerServiceWorker(import.meta.env.DEV);
 
 /** Routes that are not games. Games come from the registry, keyed by id. */
 const SCREENS: Record<string, Screen> = {
@@ -34,6 +39,16 @@ let teardown: (() => void) | null = null;
 function render(): void {
   teardown?.();
   root.replaceChildren();
+  // Intercepts the very first route the app ever renders, regardless of which
+  // game or screen the player was actually headed to — a one-time, app-wide
+  // explainer ahead of any game's own mic gate. See engine/first-run.ts.
+  if (!hasSeenFirstRun()) {
+    teardown = firstRunScreen(root, () => {
+      markFirstRunSeen();
+      render();
+    });
+    return;
+  }
   teardown = screenFor(window.location.hash.replace(/^#\/?/, ''))(root);
 }
 
