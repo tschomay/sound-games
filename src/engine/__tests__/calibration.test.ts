@@ -106,22 +106,52 @@ describe('stored profiles', () => {
     );
     const loaded = loadProfile();
     expect(loaded).toEqual({
-      version: 2,
+      version: 3,
       noiseFloorDb: -58,
       loudDb: -18,
       pitchRange: { lowHz: 120, highHz: 400 },
+      deviceLatencyMs: 0,
       createdAt: 123,
     });
   });
 
-  it('rejects a stored range that is not usable', () => {
+  it('lifts a version 2 profile forward with no latency compensation', () => {
+    // Version 2 predates per-device latency compensation entirely.
     localStorage.setItem(
       STORAGE_KEY,
       JSON.stringify({
         version: 2,
         noiseFloorDb: -58,
         loudDb: -18,
+        pitchRange: { lowHz: 120, highHz: 400 },
+        createdAt: 123,
+      }),
+    );
+    const loaded = loadProfile();
+    expect(loaded).toEqual({
+      version: 3,
+      noiseFloorDb: -58,
+      loudDb: -18,
+      pitchRange: { lowHz: 120, highHz: 400 },
+      deviceLatencyMs: 0,
+      createdAt: 123,
+    });
+  });
+
+  it('round-trips a measured device latency', () => {
+    saveProfile({ ...profile, deviceLatencyMs: 42 });
+    expect(loadProfile()?.deviceLatencyMs).toBe(42);
+  });
+
+  it('rejects a stored range that is not usable', () => {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        version: 3,
+        noiseFloorDb: -58,
+        loudDb: -18,
         pitchRange: { lowHz: 400, highHz: 120 },
+        deviceLatencyMs: 0,
         createdAt: 1,
       }),
     );

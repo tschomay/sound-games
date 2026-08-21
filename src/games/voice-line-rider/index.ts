@@ -79,6 +79,11 @@ export const voiceLineRider: GameDefinition = {
   // window — the replay that follows needs nothing from it at all, so
   // there's no ongoing listening for a phone speaker to bleed into.
   headphonesRecommended: false,
+  accessibilityNote:
+    'Needs a few seconds of a hummed, pitched tune, with no alternative input — this one really ' +
+    'is built entirely around your own voice. If that is not possible for you, this one is not ' +
+    'for you; try Rhythm-Gated Combat or Drop Siege instead, which read music rather than ' +
+    'requiring sound from you.',
   readyPrompt: 'Hum to start recording',
   formatScore: (score) => {
     if (score >= REACHED_SCORE_THRESHOLD) return 'Reached the goal!';

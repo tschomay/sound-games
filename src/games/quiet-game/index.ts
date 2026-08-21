@@ -56,6 +56,12 @@ export const quietGame: GameDefinition = {
   // No game audio, and the only detector in play is level — there's nothing
   // for headphones to protect here.
   headphonesRecommended: false,
+  accessibilityNote:
+    'Needs you to control your own loudness — quiet to sneak, loud to shatter glass. It does ' +
+    'not have to be your voice specifically (a clap, a tap near the mic, anything the room can ' +
+    'hear works), but there is no way to play it without producing and withholding sound on ' +
+    'command. If you cannot do that at all, try Rhythm-Gated Combat or Drop Siege instead, ' +
+    'which read music rather than requiring sound from you.',
   readyPrompt: 'Stay quiet to begin',
   formatScore: (score) => `${score} obstacle${score === 1 ? '' : 's'} cleared`,
   create: (_profile: CalibrationProfile) => new QuietGameGame(),

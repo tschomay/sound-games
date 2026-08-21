@@ -161,12 +161,12 @@ describe('Analyser timbre classification wiring', () => {
 
 /** Records every call it receives instead of doing any real tracking. */
 class RecordingBeatInput implements BeatInput {
-  calls: Array<{ t: number; onset: boolean; onsetStrength: number }> = [];
+  calls: Array<{ t: number; onset: boolean; onsetStrength: number; latencySeconds: number }> = [];
   resetCount = 0;
   next: BeatReading = NO_BEAT;
 
-  advance(t: number, onset: boolean, onsetStrength: number): BeatReading {
-    this.calls.push({ t, onset, onsetStrength });
+  advance(t: number, onset: boolean, onsetStrength: number, latencySeconds = 0): BeatReading {
+    this.calls.push({ t, onset, onsetStrength, latencySeconds });
     return this.next;
   }
 
@@ -206,6 +206,29 @@ describe('Analyser beat wiring', () => {
     expect(beatInput.calls[0].onset).toBe(frame.onset);
     expect(beatInput.calls[0].onsetStrength).toBe(frame.onsetStrength);
     expect(frame.beat).toBe(reading);
+  });
+
+  it('feeds the beat input 0 latency seconds when the profile has no measured device latency', () => {
+    const context = new FakeAudioContext();
+    const source = fakeAudioSource(context);
+    const beatInput = new RecordingBeatInput();
+    const analyser = new Analyser(source, { beat: beatInput });
+
+    analyser.read();
+
+    expect(beatInput.calls[0].latencySeconds).toBe(0);
+  });
+
+  it('feeds the beat input the profile\'s measured device latency, converted to seconds', () => {
+    const context = new FakeAudioContext();
+    const source = fakeAudioSource(context);
+    const beatInput = new RecordingBeatInput();
+    const analyser = new Analyser(source, { beat: beatInput });
+    analyser.profile = { ...analyser.profile, deviceLatencyMs: 80 };
+
+    analyser.read();
+
+    expect(beatInput.calls[0].latencySeconds).toBeCloseTo(0.08, 10);
   });
 
   it('suppresses the onset/strength fed to the beat input while gated, same as Frame.onset', () => {

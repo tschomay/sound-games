@@ -156,6 +156,16 @@ button:disabled {
   font-size: 0.9rem;
 }
 
+.card .hint--access {
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin-top: 0.35rem;
+}
+
+.card .hint--access strong {
+  color: inherit;
+}
+
 .tag {
   display: inline-block;
   font-size: 0.7rem;

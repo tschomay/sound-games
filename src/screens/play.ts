@@ -9,6 +9,7 @@ import { ensureMicSession, stopSession, type Session } from '../engine/session';
 import { createSurface, startLoop, type Surface } from '../engine/canvas';
 import { DEFAULT_PROFILE, loadProfile } from '../engine/calibration';
 import { recordScore } from '../engine/scores';
+import { shareScore } from '../engine/share';
 import { isFileSource } from '../engine/source';
 import { el, navigate, overlay, topbar, type Cleanup } from '../ui';
 import { sourceGate } from './source-picker';
@@ -149,6 +150,8 @@ export function playScreen(root: HTMLElement, definition: GameDefinition): Clean
 
     const again = el('button', { class: 'btn-primary', text: 'Play again' });
     again.addEventListener('click', playAgain);
+    const share = el('button', { text: 'Share' });
+    share.addEventListener('click', () => void shareResult(share));
     const back = el('button', { text: 'Back to games' });
     back.addEventListener('click', () => navigate(''));
 
@@ -158,9 +161,38 @@ export function playScreen(root: HTMLElement, definition: GameDefinition): Clean
       el('h1', { text: definition.formatScore(game.score) }),
       el('p', { text: resultDetail(definition, best, beaten) }),
       again,
+      share,
       back,
     );
     stage.appendChild(resultsPanel);
+  }
+
+  /**
+   * A client-only share of this locally-recorded score. `shareScore`
+   * (`engine/share.ts`) owns the actual decision logic (Web Share API first,
+   * clipboard fallback, what counts as a real failure); this just turns its
+   * answer into a real, user-visible confirmation — never a silent no-op,
+   * per the roadmap's own requirement, except for a player closing the native
+   * share sheet on their own, which isn't a failure and has nothing to confirm.
+   */
+  async function shareResult(button: HTMLButtonElement): Promise<void> {
+    const outcome = await shareScore(navigator, definition.title, definition.formatScore(game.score));
+    if (outcome === 'shared') flashButton(button, 'Shared!');
+    else if (outcome === 'copied') flashButton(button, 'Copied to clipboard!');
+    else if (outcome === 'failed') flashButton(button, 'Could not share — try again');
+  }
+
+  /** Swap a button's label to a confirmation for a couple of seconds, then
+   *  put it back — the closest thing a plain button has to a toast. */
+  function flashButton(button: HTMLButtonElement, message: string): void {
+    const original = button.textContent;
+    button.textContent = message;
+    button.disabled = true;
+    setTimeout(() => {
+      if (!button.isConnected) return;
+      button.textContent = original;
+      button.disabled = false;
+    }, 2000);
   }
 
   function playAgain(): void {

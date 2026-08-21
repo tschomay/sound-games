@@ -11,6 +11,17 @@
  * whether it's holding one of these, the other, or nothing. These two classes
  * are what let it — each closes over which concrete tracker (if any) it is
  * wrapping and its own idea of "now", and exposes the same `advance`.
+ *
+ * **Latency compensation lives here too, per adapter, for the same reason.**
+ * `Analyser` passes the player's measured device latency (see
+ * `engine/latency.ts`) on every call; each adapter subtracts it from its own
+ * idea of "now" before asking its tracker/reader what the beat is doing. That
+ * shifts every consumer of `Frame.beat` (`beatPhase`, `onBeat`, `beatIndex`)
+ * to report what the beat was doing `latencySeconds` ago — exactly what a
+ * device with that much output-to-input delay is *currently* making audible —
+ * so a tap that lands when the player actually hears a beat reads as on time,
+ * not late. See ADR-0015 for why this is the one central point rather than
+ * each beat-driven game reading the profile and adjusting its own hit window.
  */
 import type { BeatReader, BeatReading } from './beat';
 import type { CausalBeatTracker } from './beat-causal';
@@ -24,8 +35,11 @@ export interface BeatInput {
    * output-bus suppression, same as `Frame.onset`) — real onset input is what
    * the causal tracker needs to track anything.
    * @param onsetStrength paired with `onset`, same as `Frame.onsetStrength`.
+   * @param latencySeconds this device's measured output-to-input latency, 0
+   * when unmeasured. Subtracted from whichever clock this adapter actually
+   * reads — see the module doc comment.
    */
-  advance(t: number, onset: boolean, onsetStrength: number): BeatReading;
+  advance(t: number, onset: boolean, onsetStrength: number, latencySeconds?: number): BeatReading;
   /** Forget any per-frame edge state. Call after a seek or a round restart. */
   reset(): void;
 }
@@ -34,8 +48,8 @@ export interface BeatInput {
 export class CausalBeatInput implements BeatInput {
   constructor(private readonly tracker: CausalBeatTracker) {}
 
-  advance(t: number, onset: boolean, onsetStrength: number): BeatReading {
-    return this.tracker.process(t, onset, onsetStrength);
+  advance(t: number, onset: boolean, onsetStrength: number, latencySeconds = 0): BeatReading {
+    return this.tracker.process(t - latencySeconds, onset, onsetStrength);
   }
 
   reset(): void {
@@ -57,8 +71,8 @@ export class FileBeatInput implements BeatInput {
     private readonly positionSeconds: () => number,
   ) {}
 
-  advance(_t: number, _onset: boolean, _onsetStrength: number): BeatReading {
-    return this.reader.read(this.positionSeconds());
+  advance(_t: number, _onset: boolean, _onsetStrength: number, latencySeconds = 0): BeatReading {
+    return this.reader.read(this.positionSeconds() - latencySeconds);
   }
 
   reset(): void {

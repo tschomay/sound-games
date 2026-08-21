@@ -65,6 +65,11 @@ export const vowelSteeringSpike: GameDefinition = {
     "This is a spike, not a finished game. Testing whether pitch and vowel shape make two usable axes. Hum a note: pitch moves the reticle up/down, and shifting the vowel shape of your hum — toward \"ee\" or toward \"oo\" — moves it left/right. Steer onto the ring to score. Might not feel great yet — that's exactly what this is testing.",
   introDetail: `${DEFAULT_CONFIG.roundDuration} seconds per round. Raw axis numbers are shown on screen the whole time.`,
   headphonesRecommended: false,
+  accessibilityNote:
+    'A feasibility spike, not a finished game, built entirely around sustained pitched and ' +
+    'vowel-shaped sound from your own voice — no alternative input exists or is planned for it. ' +
+    'If you cannot produce that, skip this one; try Rhythm-Gated Combat or Drop Siege instead, ' +
+    'which read music rather than requiring sound from you.',
   readyPrompt: 'Hum to start steering',
   formatScore: (score) => `${score} target${score === 1 ? '' : 's'}`,
   create: (profile: CalibrationProfile) =>

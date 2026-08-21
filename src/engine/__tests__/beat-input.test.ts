@@ -30,6 +30,26 @@ describe('CausalBeatInput', () => {
 
     expect(spy).toHaveBeenCalledOnce();
   });
+
+  it('defaults latencySeconds to 0, forwarding t unshifted', () => {
+    const tracker = new CausalBeatTracker();
+    const spy = vi.spyOn(tracker, 'process');
+    const input = new CausalBeatInput(tracker);
+
+    input.advance(1.5, true, 0.8);
+
+    expect(spy).toHaveBeenCalledWith(1.5, true, 0.8);
+  });
+
+  it('subtracts the measured device latency from t before asking the tracker', () => {
+    const tracker = new CausalBeatTracker();
+    const spy = vi.spyOn(tracker, 'process');
+    const input = new CausalBeatInput(tracker);
+
+    input.advance(1.5, true, 0.8, 0.1);
+
+    expect(spy).toHaveBeenCalledWith(1.4, true, 0.8);
+  });
 });
 
 function fakeReader(reading: BeatReading = NO_BEAT): BeatReader & {
@@ -87,5 +107,23 @@ describe('FileBeatInput', () => {
     input.reset();
 
     expect(reader.reset).toHaveBeenCalledOnce();
+  });
+
+  it('defaults latencySeconds to 0, reading the clock unshifted', () => {
+    const reader = fakeReader();
+    const input = new FileBeatInput(reader, () => 42.5);
+
+    input.advance(0, false, 0);
+
+    expect(reader.read).toHaveBeenCalledWith(42.5);
+  });
+
+  it('subtracts the measured device latency from the file position before reading', () => {
+    const reader = fakeReader();
+    const input = new FileBeatInput(reader, () => 42.5);
+
+    input.advance(0, false, 0, 0.1);
+
+    expect(reader.read).toHaveBeenCalledWith(42.4);
   });
 });

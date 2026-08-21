@@ -50,6 +50,14 @@ export interface GameDefinition {
    * writing its own copy of it.
    */
   headphonesRecommended?: boolean;
+  /**
+   * A stated, honest answer to "can I play this without producing voice or
+   * sound myself?" — even when that answer is "no, try these instead". The
+   * roadmap's Phase 9 accessibility bullet is explicit that every game needs
+   * one, not just the ones where the answer is convenient. Shown on the
+   * menu's game card, before a player commits to a game — see `screens/menu.ts`.
+   */
+  accessibilityNote: string;
   /** What the player is told to do to start a round. */
   readyPrompt: string;
   /** Turns a score into something readable: 3 → "3 gates". */

@@ -709,7 +709,7 @@ check that claim.
 
 ---
 
-## Phase 9 — Making it an app
+## Phase 9 — Making it an app — **shipped**
 
 **Ships**
 
@@ -764,12 +764,113 @@ visitor, and it is not a replacement for any game's own mic gate
 (`ui.ts`'s `overlay()`, `source-picker.ts`'s `sourceGate`) — those are
 unchanged; the explainer sits strictly upstream of all of them, once.
 
-**What remains open:** three of this phase's five bullets are a separate,
-later task — per-device latency compensation, an accessibility statement per
-game, and score sharing. Also unverified here, matching every prior phase's
-honest caveat about real hardware: actually installing the PWA and seeing its
+**Latency compensation, accessibility, and score sharing shipped:** the
+remaining three of this phase's five "Ships" bullets, and the last work on
+the entire roadmap. Full design reasoning is in ADR-0015; this is what
+actually landed.
+
+**Per-device latency compensation.** `engine/latency.ts`'s
+`LoopbackLatencyMeasurement` plays a short click through the existing
+`OutputBus` and times its arrival with a dedicated `OnsetDetector` fed the
+analyser's *raw* spectrum (not `Frame.onset`, which the output bus's own
+suppression window would force false for exactly the click being measured —
+ADR-0005), using `AudioContext.currentTime` on both ends so JS scheduling
+jitter never pollutes the number. Several trials run, aggregated by median
+(`summariseLatency`), rather than trusting any single one. The result is
+stored as `CalibrationProfile.deviceLatencyMs` (`calibration.ts`, now version
+3, with the same migrate-forward-at-0 precedent version 2 set for
+`pitchRange`), reachable and redoable from a new "Device latency" row on the
+menu's setup panel (`screens/latency-setup.ts`, `#/latency-setup`) — optional,
+skippable, defaulting to 0ms (no compensation) rather than mandatory, exactly
+as the brief asked. **It is applied centrally, in `engine/analyser.ts` and
+`engine/beat-input.ts`, not in either beat-driven game**: `BeatInput.advance`
+now takes the measured `latencySeconds` every frame and each adapter
+subtracts it from its own clock (`CausalBeatInput` from `t`, `FileBeatInput`
+from the file's playback position) before asking its tracker what the beat is
+doing. Because `rhythm-gated-combat/index.ts` and `drop-siege/index.ts`
+already copy `Frame.beat`'s fields straight through with no transformation of
+their own, this compensates both games' hit-window checks with **zero changes
+to either game's rules or wiring** — see ADR-0015 for the full derivation of
+why subtracting the latency from the query time is the correct direction, and
+for the honest limit of what a single loopback number can and can't
+distinguish (this device's own output latency versus a mic merely overhearing
+someone else's speaker). **What shipped is the measurement mechanism and its
+integration with the compensation and the calibration profile, fully unit-
+tested with synthetic timing and spectra and confirmed wired end-to-end with
+headless Chromium against a real `AudioContext` and a fake capture device —
+its real-world accuracy on actual phone/laptop/headphone hardware is
+unverified in this sandboxed environment**, the same honest caveat every
+DSP-adjacent phase since 4 has shipped with; Chromium's fake audio device
+produced *a* number end-to-end with zero errors, but that number is an
+artifact of the fake device's synthetic pattern, not evidence about real
+acoustic latency.
+
+**Accessibility.** `GameDefinition.accessibilityNote` (`engine/game.ts`) is a
+required string, filled in honestly for all nine registered games
+(`games/*/index.ts`) — the roadmap's own eight-game count was one short of
+the actual registry, which also includes the Phase 5 Vowel Steering spike.
+Four games (Hum Flyer, Voice Line Rider, Vowel Steering spike, Clap Runner)
+are flatly built around a voiced or percussive sound with no alternative
+input, and say so, pointing at Rhythm-Gated Combat or Drop Siege. Two
+(Sonar Maze, Quiet Game) get a more nuanced answer: Sonar Maze's lane-
+switching is already a tap (ADR-0006) but its maze-revealing verb still needs
+a real clap-like sound; Quiet Game needs sound on command but not
+specifically *voice* (a tap near the mic reads the same as a clap). The
+remaining three — Ecosystem Garden, Rhythm-Gated Combat, Drop Siege — are
+already fully playable without any sound from the player at all, and the
+note says so rather than leaving it implied: the two beat games' one verb is
+already a tap (ADR-0006), and Ecosystem Garden's one "player action" (scaring
+off predators) is a level threshold a loud passage in a loaded file crosses
+exactly as well as a shout does. Shown on the menu as a labelled, always-
+visible line under each game's description (`screens/menu.ts`) — not a
+click-to-expand disclosure, since every card is already one whole `<button>`
+and nesting a second interactive element inside it would be invalid HTML.
+Verified with headless Chromium: all nine cards render a non-empty note, with
+zero console errors.
+
+**Score sharing.** `engine/share.ts`'s `shareScore` is the pure decision
+logic — Web Share API first, clipboard fallback when it's absent or declines,
+`'cancelled'` (not a failure) when a player closes the native share sheet on
+their own, `'failed'` only when both paths are exhausted — built to take a
+small structural `ShareTarget` rather than the real `navigator`, so it is
+fully unit-tested with fake targets and no browser. `screens/play.ts`'s
+`showResults()` gained a "Share" button whose handler is four lines: call
+`shareScore(navigator, definition.title, definition.formatScore(game.score))`
+and turn the outcome into a button-label confirmation ("Shared!", "Copied to
+clipboard!", or "Could not share — try again", the last one a real, visible
+failure state rather than a silent no-op). No server component, no
+verification of the shared score — a client-only share of a locally-recorded
+number, per the brief. **What wasn't checked end-to-end:** reaching
+`showResults()` in a real or headless browser requires playing a full round
+to completion through a live microphone session, which this phase's other
+Playwright checks (menu cards, the latency screen) didn't need — the Share
+button itself was judged low-risk given how thin its wiring is around the
+already-tested `shareScore`, but a real-device pass is the natural place to
+also glance at it.
+
+**What remains open, honestly:** actually installing the PWA and seeing its
 icon on a real phone's home screen (Safari's and Android Chrome's install
-flows were not exercised by anything in this sandboxed environment).
+flows were not exercised by anything in this sandboxed environment) — carried
+over unchanged from the prior task, since nothing in this one touched the PWA
+shell. The device-latency measurement's real-world accuracy, named above.
+And the results-screen Share button's live behaviour in a real browser,
+also named above. None of these are unknown *bugs* — the code paths involved
+are unit-tested and, where practical, exercised end-to-end against real Web
+Audio APIs in headless Chromium — they are the specific, named subset of "does
+this actually work on someone's phone" that only real hardware in someone's
+hand can answer, exactly the category of open item every DSP-adjacent phase
+since Phase 4 has shipped with rather than silently claimed to have closed.
+
+**With this, every phase on the roadmap is shipped.** The "Sequencing at a
+glance" table below is left as the historical record it always was — it
+describes the order phases actually landed in and what each one unlocked,
+which remains true regardless of the roadmap being complete now. The two
+genuinely open items still on record are Phase 5's A5 Vowel Steering
+schedule-vs-park call (a perceptual judgement the roadmap was explicit only a
+human humming into a real microphone could make) and the real-hardware
+verification gaps named throughout Phases 4, 6, 7, 8, and this one. Both are
+about needing a real device and a real room, not about anything left
+unbuilt.
 
 ---
 
@@ -801,7 +902,7 @@ flows were not exercised by anything in this sandboxed environment).
 | 6 | Music input + beat tracking | all of category B |
 | 7 | — | B3 Ecosystem Garden |
 | 8 | Section detection | B1 Rhythm Combat, B2 Reactive TD |
-| 9 | PWA, latency, a11y | shipping it as an app |
+| 9 | PWA, latency, a11y, sharing | shipping it as an app |
 
 **Shortest path to a varied, complete-feeling app:** phases 1 → 2 → 3 → 4. That
 is four voice games on a shared shell. Phases 1–3 and the first half of Phase 4

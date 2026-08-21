@@ -9,7 +9,7 @@
 import type { CalibrationProfile, PitchRange } from './types';
 
 const STORAGE_KEY = 'sound-games:calibration';
-const VERSION = 2;
+const VERSION = 3;
 
 /** Used when nothing has been measured, so an uncalibrated player still plays. */
 export const DEFAULT_PITCH_RANGE: PitchRange = { lowHz: 110, highHz: 440 };
@@ -20,6 +20,7 @@ export const DEFAULT_PROFILE: CalibrationProfile = {
   noiseFloorDb: -65,
   loudDb: -22,
   pitchRange: DEFAULT_PITCH_RANGE,
+  deviceLatencyMs: 0,
   createdAt: 0,
 };
 
@@ -35,8 +36,11 @@ export function loadProfile(): CalibrationProfile | null {
 
 /**
  * Version 1 stored `lowHz`/`highHz` inline and always had them, because the hum
- * steps were mandatory. Those profiles are still perfectly good measurements, so
- * lift them into the new shape rather than making people calibrate again.
+ * steps were mandatory. Version 2 split that out into `pitchRange` but predates
+ * per-device latency compensation. Both are still perfectly good measurements
+ * of what they *do* contain, so lift them into the new shape — with no
+ * compensation, exactly what an unmeasured device gets — rather than making
+ * people calibrate again.
  */
 function migrate(stored: unknown): CalibrationProfile | null {
   if (typeof stored !== 'object' || stored === null) return null;
@@ -49,6 +53,19 @@ function migrate(stored: unknown): CalibrationProfile | null {
       noiseFloorDb: record.noiseFloorDb,
       loudDb: record.loudDb,
       pitchRange: readRange(record.pitchRange),
+      deviceLatencyMs: typeof record.deviceLatencyMs === 'number' ? record.deviceLatencyMs : 0,
+      createdAt: typeof record.createdAt === 'number' ? record.createdAt : 0,
+    };
+  }
+
+  if (record.version === 2) {
+    if (typeof record.noiseFloorDb !== 'number' || typeof record.loudDb !== 'number') return null;
+    return {
+      version: VERSION,
+      noiseFloorDb: record.noiseFloorDb,
+      loudDb: record.loudDb,
+      pitchRange: readRange(record.pitchRange),
+      deviceLatencyMs: 0,
       createdAt: typeof record.createdAt === 'number' ? record.createdAt : 0,
     };
   }
@@ -60,6 +77,7 @@ function migrate(stored: unknown): CalibrationProfile | null {
       noiseFloorDb: record.noiseFloorDb,
       loudDb: record.loudDb,
       pitchRange: readRange(record),
+      deviceLatencyMs: 0,
       createdAt: typeof record.createdAt === 'number' ? record.createdAt : 0,
     };
   }

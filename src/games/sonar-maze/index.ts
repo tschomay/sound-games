@@ -116,6 +116,12 @@ export const sonarMaze: GameDefinition = {
   // No game audio, and the detectors in play are onset/level — there's
   // nothing for headphones to protect here, same reasoning as Quiet Game.
   headphonesRecommended: false,
+  accessibilityNote:
+    'Lane-switching is a tap, so that half needs no sound at all. But revealing the maze itself ' +
+    'needs a real clap-like sound each time — it does not have to be your voice (a clap, a ' +
+    'snap, a knock on a hard surface near the mic all work), but there is no way to see the ' +
+    'maze at all without producing one. If you cannot make any percussive sound on command, ' +
+    'this one is not for you; if you can, even without a voice, it plays fine.',
   readyPrompt: 'Clap to start mapping',
   formatScore: (score) => `${score} fork${score === 1 ? '' : 's'} navigated`,
   create: (_profile: CalibrationProfile) => new SonarMazeGame(),

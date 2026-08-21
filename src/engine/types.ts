@@ -119,5 +119,14 @@ export interface CalibrationProfile {
   loudDb: number;
   /** null when the player skipped the voice-range steps. */
   pitchRange: PitchRange | null;
+  /**
+   * This device's own output-to-input audio latency, in milliseconds — the gap
+   * between scheduling a sound through the output bus and a microphone
+   * actually hearing it, measured once via a loopback click test (see
+   * `engine/latency.ts`). 0 when unmeasured or skipped: "no compensation" is a
+   * safe, playable default, not an error state — see `engine/latency.ts`'s doc
+   * comment for what this number can and can't distinguish.
+   */
+  deviceLatencyMs: number;
   createdAt: number;
 }
