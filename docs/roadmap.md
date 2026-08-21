@@ -525,7 +525,7 @@ where pausing the room or scrubbing an album is a feature.
 
 ---
 
-## Phase 8 — Beat-driven games
+## Phase 8 — Beat-driven games — **shipped**
 
 **Ships: B1 Rhythm-Gated Combat**, then **B2 Reactive Runner / Tower Defense**.
 
@@ -612,11 +612,9 @@ file's offline grid actually lines up with a real track the way it does with
 a synthetic click track, are both unverified here, exactly as ADR-0010 and
 the Phase 6 "done when" already flagged. Rhythm-Gated Combat inherits that
 open item rather than resolving it; whoever next has a real device and real
-music in hand is the first one who can. **B2 Reactive Runner / Tower Defense
-is not part of this — Phase 8 as a whole is not shipped,** only its first
-game.
+music in hand is the first one who can.
 
-**Section detection is available:** `engine/sections.ts` —
+**Section detection landed as a standalone capability:** `engine/sections.ts` —
 `analyseSongStructure(audio)` takes the same decoded `DecodedAudio` the offline
 beat tracker does and returns a `SongStructure`: contiguous `Section`s tiling
 the track (start/end/duration, a 0..1 `intensity` relative to the track, an
@@ -627,13 +625,87 @@ is a beat-synchronous band-energy feature, a self-similarity matrix and a
 Foote checkerboard novelty curve, with a veto that throws out boundaries where
 the music either side turns out to be the same music — see ADR-0013 for the
 algorithm, the two similarity measures that were tried and abandoned, and a
-long honest list of the real music this will struggle on. **This is the
-capability B2 needs, not B2:** no game code exists for it, nothing calls it
-yet, and the wave-structure/boss-timing system the roadmap describes is still
-to be built on top. Whoever builds it should pass the beat grid in rather than
-let both passes compute one (~1.7s cold for a four-minute track, ~700ms with a
-grid supplied), and should decide deliberately what to do when `dropIndex` is
-`null`, which is the honest answer for a track with no dynamic shape.
+long honest list of the real music this will struggle on. This landed with no
+game code calling it yet; B2 below is what calls it.
+
+**B2 Reactive Runner / Tower Defense shipped, as `games/drop-siege/`.** The
+brief left the genre framing open ("Reactive Runner / Tower Defense" covers
+two different games); the shape chosen is closer to fixed-position defense
+than base-building — a player defends one spot ("the keep") across three
+lanes, in scope with every other game here, not a resource-management/tower-
+placement game. `game.ts`'s `DropSiege` is pure rules, unit-tested the same
+way as every other game (20 new tests, synthetic `SongStructure`/`Section`
+data built directly — no real audio needed — plus synthetic `Frame.beat`/
+`Frame.bands`-shaped inputs); `index.ts` is the `GameDefinition`, the render,
+and the lazy `analyseSongStructure` call. **Waves come from sections:** a
+`SongStructure` is handed to the rules once, before play (`configureTrack`),
+and each `Section` becomes one wave — its `intensity` (0..1, relative to the
+track) sets how many enemies arrive and how fast they queue, from a trickle
+of two at the quietest to a swarm of eight at the loudest. **The boss wave is
+the section the structure calls the drop** — one tough, centre-lane enemy
+(6 hits, always a legal target for its whole ten-beat approach) plus a fixed
+escort wave, distinct from every regular spawn. **`dropIndex: null` does not
+mean no boss:** ADR-0013 is explicit that a track can honestly have no section
+that clears the engine's own cautious margin, so Drop Siege makes its own,
+less cautious call — whichever section is loudest, however slim the lead —
+rather than silently losing the one mechanic the whole idea is built around;
+a single-section "no structure found" track still gets exactly one boss wave,
+trivially, since that section is both regular and boss. **Beat still gates
+the one player verb:** enemies move in discrete beat-locked hops, same
+unsmoothed precedent as Rhythm-Gated Combat, and `strike(lane)` — a tap, not
+a Frame field, same split as RGC and Sonar Maze (ADR-0006) — only lands
+inside the beat window. **Lanes are the new layer on top of that:** which of
+three lanes an enemy spawns into is chosen by which band dominates at spawn
+(the same texture role `bands` plays in RGC, now also a position), and a
+strike only hits an enemy in the tapped lane — reading *where* a threat is,
+not just *when* to hit it. **The round ends when the track does, not only on
+defeat:** every other game here runs until the player loses; this one is
+scored against one finite track, so reaching the end with health left is a
+win, not just a stopping point. **The file-only horizon gets a real preview,
+not just a promise of one:** a wave-preview timeline across the top of the
+screen shows every section's position and relative intensity before it
+arrives, the boss section picked out distinctly, and a "BOSS INCOMING — Ns"
+countdown appears once the drop is within twelve seconds — the long-horizon
+counterpart to RGC's few-beat telegraph, only possible because file-only
+means the whole track's shape is known before the first enemy spawns.
+
+**The mic/file gate needed a real fix, not just a new option.** Drop Siege is
+the first `GameDefinition` whose `sources` is `['file']` alone — no mic option
+at all. Before this, `screens/source-picker.ts`'s `allowFile` only ever
+*added* a file button alongside the mic one; there was no way to omit the mic
+button, so a naive file-only game would still have shown a working "Open
+microphone" button into a session type the game couldn't use. `sourceGate` now
+takes an `allowMic` option (default true, so every existing game is
+unaffected), and `play.ts` passes `allowMic: definition.sources.includes('mic')`.
+Verified two ways: a DOM unit test (`screens/__tests__/source-picker.test.ts`)
+asserting a `{allowFile: true, allowMic: false}` gate renders exactly one,
+primary-styled "Choose a file" button; and a real headless-Chromium run
+(Playwright, same tool ADR-0012 used) against the actual dev server with a
+synthetic multi-section WAV, confirming live — not just by reading the code —
+that the gate really does show only "Choose a file" with zero console errors,
+and that the real `createFileSource` → `analyseSongStructure` → beat-lock →
+wave-spawning → boss-wave-with-escorts → beat-gated `strike()` → health-
+depletion → results-screen path runs to completion end to end. Screenshots
+from that run show the wave-preview timeline, the live "BOSS INCOMING"
+countdown, and the boss itself (a glowing centre-lane circle reading its
+remaining hit count) all rendering as designed.
+
+**What that headless run can and can't establish.** It proves the wiring is
+real — a real file decodes, real DSP runs in a real browser (not a jsdom
+stand-in), a real `<input type=file>` and a real canvas both work, and
+nothing throws across the whole loop. It does not establish playability
+against real music: the synthetic WAV is two stationary segments with a
+metronome click track, the same kind of caricature ADR-0013 itself warns
+against generalising from. Whether real music's section boundaries are clean
+enough for the boss telegraph to feel earned, whether the lane-reading verb
+is fun rather than fiddly, and whether the offline beat grid's phase lock
+holds up against a real recording's messiness are all genuinely unknown here
+— exactly the same category of open item Rhythm-Gated Combat shipped with for
+beat tracking, now joined by section detection's own equivalent uncertainty.
+All 276 tests in the suite pass, `tsc --noEmit` is clean, and the production
+build succeeds — but that, like every phase since 4, is not the same claim
+as "this is fun against a real song," and no phase here has had a way to
+check that claim.
 
 ---
 

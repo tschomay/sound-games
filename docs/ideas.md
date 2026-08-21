@@ -136,7 +136,7 @@ background.
 - **Platform:** mobile-first — tap-on-beat is a natural touch verb
 - **Risk:** medium — playability depends entirely on beat-tracking accuracy.
 
-## B2. Reactive Runner / Tower Defense — `planned`
+## B2. Reactive Runner / Tower Defense — `built`
 
 Wave structure derived from song structure; the drop is a boss wave.
 

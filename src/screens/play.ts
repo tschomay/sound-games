@@ -48,6 +48,9 @@ export function playScreen(root: HTMLElement, definition: GameDefinition): Clean
   // Only games that actually declare file support get the mic-or-file choice
   // — every other game keeps the exact one-button gate it has always had.
   const supportsFile = definition.sources.includes('file');
+  // Drop Siege (`sources: ['file']`) is the first game with no mic option at
+  // all — see `source-picker.ts`'s doc comment for why `allowMic` exists.
+  const supportsMic = definition.sources.includes('mic');
   let disposeGate: (() => void) | null = null;
   let gateRoot: HTMLElement;
 
@@ -55,6 +58,7 @@ export function playScreen(root: HTMLElement, definition: GameDefinition): Clean
     const gate = sourceGate(definition.intro, (opened) => onSessionReady(opened), {
       detail: gateDetail(definition),
       allowFile: true,
+      allowMic: supportsMic,
     });
     gateRoot = gate.root;
     disposeGate = gate.dispose;
