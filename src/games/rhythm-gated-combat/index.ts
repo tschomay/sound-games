@@ -115,6 +115,11 @@ export const rhythmGatedCombat: GameDefinition = {
   // whatever's already playing (room or file) — nothing here for headphones
   // to protect, same reasoning as Ecosystem Garden.
   headphonesRecommended: false,
+  accessibilityNote:
+    'The only thing you personally do is tap on the beat — attacking never requires producing ' +
+    'any sound yourself. Play it with a loaded music file, or with the mic listening to music ' +
+    'playing in the room; either way, nothing here requires your voice or any sound from you at ' +
+    'all.',
   readyPrompt: 'Let the beat lock in',
   formatScore: (score) => `${Math.round(score)} point${Math.round(score) === 1 ? '' : 's'}`,
   create: (_profile: CalibrationProfile) => new RhythmGatedCombatGame(),

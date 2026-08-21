@@ -54,6 +54,13 @@ export const ecosystemGarden: GameDefinition = {
   // the room mic or off a file's own output — nothing here for headphones to
   // protect against.
   headphonesRecommended: false,
+  accessibilityNote:
+    'Needs no voice-controlled verb: choose a music file as the source and the garden grows ' +
+    'entirely from whatever track you pick, with no sound required from you at all. The one ' +
+    'optional player action — a loud sound to scare off predators — can just as easily come ' +
+    'from a loud passage in the music itself, so even that does not strictly require you to ' +
+    'make noise. Play it entirely hands-off with a file, or with the mic if you want your own ' +
+    'shout to do the scaring.',
   readyPrompt: 'Let some sound in to start tending',
   formatScore: (score) => `${Math.round(score)} garden point${Math.round(score) === 1 ? '' : 's'}`,
   create: (_profile: CalibrationProfile) => new EcosystemGardenGame(),

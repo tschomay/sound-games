@@ -189,6 +189,10 @@ export const dropSiege: GameDefinition = {
   // file's own output — nothing here for headphones to protect, same
   // reasoning as Ecosystem Garden and Rhythm-Gated Combat.
   headphonesRecommended: false,
+  accessibilityNote:
+    'The only thing you personally do is tap a lane on the beat — striking never requires ' +
+    'producing any sound yourself. It is file-only by design (the whole track is read in ' +
+    'advance), so nothing here requires your voice or any sound from you at all.',
   readyPrompt: 'Wait for the analysis to finish and the beat to lock in',
   formatScore: (score) => `${Math.round(score)} point${Math.round(score) === 1 ? '' : 's'}`,
   create: (_profile: CalibrationProfile) => new DropSiegeGame(),

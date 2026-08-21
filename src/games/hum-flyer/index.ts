@@ -69,6 +69,11 @@ export const humFlyer: GameDefinition = {
   // the shape of game (voice in, ears on the phone) most likely to want SFX
   // later — headphones avoid the room-echo problem regardless.
   headphonesRecommended: true,
+  accessibilityNote:
+    'Needs a sung or hummed pitch to fly — there is no alternative input, and no way to ' +
+    'play this one without producing pitched voice. If that is not possible for you, try ' +
+    'Rhythm-Gated Combat or Drop Siege: both read music instead of your voice, and the only ' +
+    'thing either needs from you is a tap.',
   readyPrompt: 'Hum to take off',
   formatScore: (score) => `${score} ${score === 1 ? 'gate' : 'gates'}`,
   create: (profile: CalibrationProfile) =>

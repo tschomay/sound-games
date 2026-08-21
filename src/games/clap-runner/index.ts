@@ -66,6 +66,11 @@ export const clapRunner: GameDefinition = {
   // No game audio — nothing for headphones to protect yet, same reasoning as
   // Sonar Maze and Quiet Game.
   headphonesRecommended: false,
+  accessibilityNote:
+    'Needs three different sounds from you — a clap, a held tone, a shout — with no alternative ' +
+    'input for any of them. If you cannot produce those sounds, this one is not for you; try ' +
+    'Rhythm-Gated Combat or Drop Siege instead, which read music rather than requiring sound ' +
+    'from you.',
   readyPrompt: 'Clap to start',
   formatScore: (score) => `${score} obstacle${score === 1 ? '' : 's'} cleared`,
   create: (_profile: CalibrationProfile) => new ClapRunnerGame(),

@@ -59,6 +59,12 @@ function gameCard(game: GameDefinition, profile: CalibrationProfile | null): HTM
     { class: 'card', 'data-disabled': missing ? 'true' : 'false' },
     el('h2', { text: game.title }),
     el('p', { text: game.description }),
+    el(
+      'p',
+      { class: 'hint hint--access' },
+      el('strong', { text: 'Without voice: ' }),
+      game.accessibilityNote,
+    ),
     missing
       ? el('span', { class: 'tag', text: missing })
       : best > 0
@@ -112,6 +118,16 @@ function setupPanel(profile: CalibrationProfile | null): HTMLElement {
       // Without a room profile there is nothing to add a range to, so start at
       // the beginning instead of dropping them into a half-finished flow.
       route: profile ? 'voice-setup' : 'calibrate',
+    }),
+    setupRow({
+      label: 'Device latency',
+      detail:
+        profile?.deviceLatencyMs != null && profile.deviceLatencyMs > 0
+          ? `~${Math.round(profile.deviceLatencyMs)}ms compensated in Rhythm-Gated Combat and Drop Siege`
+          : 'Optional — sharpens tap timing in the two beat-driven games',
+      done: (profile?.deviceLatencyMs ?? 0) > 0,
+      action: (profile?.deviceLatencyMs ?? 0) > 0 ? 'Redo' : 'Measure',
+      route: profile ? 'latency-setup' : 'calibrate',
     }),
   ];
   return el('section', { class: 'setup' }, ...rows);

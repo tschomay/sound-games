@@ -134,7 +134,14 @@ export class Analyser {
     // own suppressed output would happily lock onto it.
     const gatedOnset = gated ? false : onset.onset;
     const gatedOnsetStrength = gated ? 0 : onset.strength;
-    const beat = this.beatInput?.advance(t, gatedOnset, gatedOnsetStrength) ?? NO_BEAT;
+    // Per-device latency compensation (`engine/latency.ts`) applies here and
+    // nowhere else: every consumer of `Frame.beat` — currently Rhythm-Gated
+    // Combat and Drop Siege's hit-window checks — gets a beat instant already
+    // shifted by the player's measured device latency, with no game-side code
+    // needed. See `beat-input.ts`'s doc comment for the mechanism and
+    // ADR-0015 for why this is the central point rather than a per-game one.
+    const latencySeconds = Math.max(0, this.profile.deviceLatencyMs) / 1000;
+    const beat = this.beatInput?.advance(t, gatedOnset, gatedOnsetStrength, latencySeconds) ?? NO_BEAT;
 
     return {
       t,

@@ -61,6 +61,24 @@ class FakeAudioNode {
   disconnect(): void {}
 }
 
+/** Enough of a decoded/generated buffer for code that only ever reads samples
+ *  back out of what it wrote (`engine/latency.ts`'s click generator). */
+class FakeAudioBuffer {
+  private readonly channels: Float32Array[];
+
+  constructor(
+    channelCount: number,
+    public readonly length: number,
+    public readonly sampleRate: number,
+  ) {
+    this.channels = Array.from({ length: channelCount }, () => new Float32Array(length));
+  }
+
+  getChannelData(channel: number): Float32Array {
+    return this.channels[channel];
+  }
+}
+
 /**
  * Enough of `AudioContext` for `OutputBus` and `Analyser` to construct and run
  * against, with a `currentTime` the test advances explicitly instead of a real
@@ -68,6 +86,7 @@ class FakeAudioNode {
  */
 export class FakeAudioContext {
   currentTime = 0;
+  sampleRate = 48000;
   readonly destination = new FakeAudioNode();
   readonly analyserNode = new FakeAnalyserNode();
 
@@ -81,6 +100,10 @@ export class FakeAudioContext {
 
   createAnalyser(): FakeAnalyserNode {
     return this.analyserNode;
+  }
+
+  createBuffer(channels: number, length: number, sampleRate: number): AudioBuffer {
+    return new FakeAudioBuffer(channels, length, sampleRate) as unknown as AudioBuffer;
   }
 
   advance(seconds: number): void {

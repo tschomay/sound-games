@@ -238,14 +238,17 @@ function calibrationFlow(
     });
   }
 
-  /** Persist what's measured so far, keeping any pitch range already on file. */
+  /** Persist what's measured so far, keeping any pitch range — and any
+   *  already-measured device latency, which this flow never touches — already
+   *  on file. */
   function persist(pitchRange: PitchRange | null): CalibrationProfile {
     const profile: CalibrationProfile = {
-      version: 2,
+      version: 3,
       noiseFloorDb: measurements.noiseFloorDb,
       // A ceiling below the floor would make every sound read as full volume.
       loudDb: Math.max(measurements.loudDb, measurements.noiseFloorDb + 10),
       pitchRange,
+      deviceLatencyMs: loadProfile()?.deviceLatencyMs ?? 0,
       createdAt: Date.now(),
     };
     saveProfile(profile);
@@ -338,12 +341,17 @@ function calibrationFlow(
 
 function summaryText(profile: CalibrationProfile | null, range: PitchRange | null): string {
   const floor = Math.round(profile?.noiseFloorDb ?? 0);
+  // Only worth a mention once it's actually doing something — an unmeasured
+  // device is the same silent default every prior profile already had.
+  const latency = profile?.deviceLatencyMs
+    ? ` Device latency: ~${Math.round(profile.deviceLatencyMs)}ms compensated in beat-driven games.`
+    : '';
   if (!range) {
-    return `Room noise floor ${floor} dB. Voice control is not set up, so games that need your pitch are still locked.`;
+    return `Room noise floor ${floor} dB. Voice control is not set up, so games that need your pitch are still locked.${latency}`;
   }
   const low = hzToNote(range.lowHz);
   const high = hzToNote(range.highHz);
-  return `Your range: ${low.name}${low.octave} to ${high.name}${high.octave}. Room noise floor ${floor} dB.`;
+  return `Your range: ${low.name}${low.octave} to ${high.name}${high.octave}. Room noise floor ${floor} dB.${latency}`;
 }
 
 function describePitch(frame: Frame): string {
