@@ -64,3 +64,18 @@ describe('menuScreen device latency setup row', () => {
     expect(latencyRow?.textContent).toContain('42');
   });
 });
+
+describe('menuScreen microphone tool', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it('offers a Microphone tool card alongside the signal scope', () => {
+    const root = document.createElement('div');
+    menuScreen(root);
+    const toolTitles = Array.from(root.querySelectorAll('button.card h2')).map(
+      (h2) => h2.textContent,
+    );
+    expect(toolTitles).toContain('Microphone');
+  });
+});

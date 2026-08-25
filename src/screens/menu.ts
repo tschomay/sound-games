@@ -13,6 +13,13 @@ const TOOLS = [
     description:
       'Live view of every detector. For tuning, and for working out why a game is misreading you.',
   },
+  {
+    route: 'mic-setup',
+    title: 'Microphone',
+    description:
+      "Pick which input device games use — steer off a paired Bluetooth headset's mic so it " +
+      "doesn't drag your speaker down to call quality.",
+  },
 ];
 
 /**

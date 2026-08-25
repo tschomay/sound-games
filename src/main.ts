@@ -2,6 +2,7 @@ import './styles.css';
 import { menuScreen } from './screens/menu';
 import { calibrateScreen, voiceSetupScreen } from './screens/calibrate';
 import { latencySetupScreen } from './screens/latency-setup';
+import { micSetupScreen } from './screens/mic-setup';
 import { scopeScreen } from './screens/scope';
 import { playScreen } from './screens/play';
 import { firstRunScreen } from './screens/first-run';
@@ -19,6 +20,7 @@ const SCREENS: Record<string, Screen> = {
   calibrate: calibrateScreen,
   'voice-setup': voiceSetupScreen,
   'latency-setup': latencySetupScreen,
+  'mic-setup': micSetupScreen,
   scope: scopeScreen,
 };
 

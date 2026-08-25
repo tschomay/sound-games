@@ -9,6 +9,13 @@ export interface AudioSource {
   readonly context: AudioContext;
   /** Node to tap for analysis. Not connected to the destination by the source. */
   readonly node: AudioNode;
+  /**
+   * The concrete input device behind a mic source (a `MediaDeviceInfo.deviceId`
+   * from `listMicDevices()`), so a picker can show which one is actually open.
+   * Undefined for a file source, and for a mic source on a browser that
+   * doesn't report it back via `MediaStreamTrack.getSettings()`.
+   */
+  readonly deviceId?: string;
   stop(): void;
 }
 
