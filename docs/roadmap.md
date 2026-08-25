@@ -872,6 +872,17 @@ verification gaps named throughout Phases 4, 6, 7, 8, and this one. Both are
 about needing a real device and a real room, not about anything left
 unbuilt.
 
+**B4 Overtone, added after the fact.** Every Category B idea this roadmap
+originally planned (B1–B3) was built by the end of Phase 8, and every other
+phase since has been shared machinery, not new game concepts — so once the
+roadmap's own nine were all shipped, the next unit of work wasn't a phase at
+all: it was designing a new idea (`docs/ideas.md`'s B4) and building it in one
+pass, the same "games are cheap, capabilities are expensive" reasoning this
+roadmap opened with, just applied with every capability it needs — `centroid`,
+`bands`, `level`, the tap-input pattern from ADR-0006 — already sitting in the
+engine from prior phases. Nothing here required new shared plumbing or a new
+ADR; see `games/overtone/game.ts` for the design reasoning.
+
 ---
 
 ## Cross-cutting, continuously

@@ -160,6 +160,30 @@ to stay a game.
 - **Platform:** mobile-first
 - **Risk:** low technically, medium as a *design* (may just not be fun).
 
+## B4. Overtone — `built`
+
+An endless-runner where the terrain itself is drawn by the song's brightness
+(`centroid`): bright, cutting sound raises the ground into jagged peaks, dark,
+warm sound flattens it into valleys. Bass hits launch rock obstacles onto the
+terrain ahead; the only verb is a tap to jump them, no sound required from the
+player at all. It's the instrumental mirror of Hum Flyer (A1) — there your
+pitch draws where you fly, here the song's brightness draws the ground you
+ride. Not a duplicate of Ecosystem Garden despite both reading `bands`: this
+is the only Category B game to use `centroid` at all, reads it every frame to
+reshape *geometry* rather than to drive a slow multi-minute management meter,
+and turns `bands.bass` into a fast, hard-fail spawn trigger instead of a
+growth accumulator.
+
+- **Detectors:** `centroid`, `bands.bass`, `level` — the only Category B game
+  not built on `beat`.
+- **Input:** both, plus a tap to jump. Nothing here needs a file's whole-track
+  look-ahead the way Drop Siege does.
+- **Platform:** mobile-first — one tap is the entire touch surface.
+- **Risk:** low-medium — there's no calibration step for a full mix's
+  brightness range (same open question A5/vowel-steering-spike already
+  carries for a single voice), so the default Hz range is a reasoned guess,
+  not a measurement.
+
 ---
 
 # Known hazards
