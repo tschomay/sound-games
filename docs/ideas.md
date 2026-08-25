@@ -184,6 +184,144 @@ growth accumulator.
   carries for a single voice), so the default Hz range is a reasoned guess,
   not a measurement.
 
+## B5. Trackgen — `built`
+
+Drop in a track, get a level generated from it: song structure
+(`analyseSongStructure`, ADR-0013) becomes the level's chapters, one biome per
+section, coloured by that chapter's own mean spectral brightness; onset peaks
+picked from the whole-track onset envelope (`computeOnsetEnvelope`) become
+placed collectibles; the drop (`SongStructure.dropIndex`) gets the densest,
+brightest chapter. This is the "big" idea in name only, technically — the
+self-similarity work it needs already exists and already backs Drop Siege, so
+nothing here is new DSP, just a new *consumer* of it, plus one small offline
+pass (a per-section mean spectral centroid, built from the same `Fft`/
+`hannWindow` helpers `sections.ts` already uses, kept local to this game
+rather than added to the engine).
+
+The level is generated once, entirely offline, before the round starts, and
+then played back in lock-step with the file's own position — same principle
+as Drop Siege's timeline, extended from "wave timing" to "the whole world".
+**v1 scope is deliberately narrower than the full pitch:** no separate hazard
+system and no fail state — the "energy → speed" element is a cosmetic
+parallax/pacing multiplier layered on top of a world position that is always
+literally `source.position()`, not an independently accumulated distance,
+so a collectible authored at a given second of the track can never drift out
+of sync with the sound that placed it there. The game is entirely about
+timing jumps to grab collectibles as your own chapter of the song scrolls by;
+a round ends, win or lose, when the track ends. Score is collectibles grabbed
+out of the total the song produced — literally different every time someone
+brings a different song, which is the whole point.
+
+- **Detectors:** none live — everything is the offline `sections`/onset-
+  envelope analysis, read once before playback.
+- **Input:** **file only.** The whole point requires seeing the whole track
+  before playback starts, same reasoning as Drop Siege.
+- **Platform:** mobile-first — a tap is the only input, timed against
+  collectibles scrolling by in sync with playback.
+- **Risk:** medium — not the DSP (already built), but whether procedurally
+  placed collectibles reliably read as fair and fun across wildly different
+  songs, which is a design risk no amount of unit testing settles on its own.
+
+## B6. Rhythm Siege — `built`
+
+Lane-based tower defense, purely reactive to whatever's live: a bass-heavy
+onset spawns a slow, tough Heavy in a lane; a high-band onset spawns a fast,
+fragile Swarm; the live causal beat tracker's tempo (`Frame.beat.bpm`) sets
+how fast everything already spawned marches toward you. Tap a lane to strike
+whatever's nearest in it. No look-ahead, no whole-track analysis — put a
+different track on mid-round and the enemy mix and march speed both change on
+the spot, live.
+
+Not a duplicate of either existing beat-driven game despite the family
+resemblance: Rhythm-Gated Combat gates *when* your one verb lands (only on
+the beat); Drop Siege paces *wave structure* from a whole track's authored
+shape, file-only. Rhythm Siege gates neither — the tap always lands — and
+instead lets a live per-hit drum classification decide *what* spawns, and a
+live (possibly unlocked, possibly zero-confidence) tempo estimate decide how
+fast it all closes in, degrading to a fixed default march speed rather than
+stalling when no tempo can be found, the same "an unlocked signal still
+produces a playable game" posture Ecosystem Garden already takes toward
+`bands` with no beat tracking at all.
+
+- **Detectors:** `onset`, `bands` (to classify a spawn as bass- or
+  high-dominant), `beat` (tempo only — `bpm`, not phase or `onBeat`).
+- **Input:** both, and genuinely no worse on mic — this is the live-mic
+  showcase of the beat-driven half of the category, the counterpart to Drop
+  Siege being the file-only one.
+- **Platform:** mobile-first — tap a lane.
+- **Risk:** medium — live drum classification off `bands` at the onset
+  instant is cruder than a real kick/snare classifier; expect some
+  misclassified spawns on busy, cymbal-heavy mixes.
+
+## B7. Conductor Boss — `built`
+
+A single boss arena where the boss's attacks *are* the song, live: a bass hit
+telegraphs and then executes a ground slam (dodge by switching lane), a
+higher-band onset telegraphs and executes a projectile aimed at your current
+lane (dodge by switching *away* from it). The telegraph window is short — long
+enough to be a real reaction window, short enough that the telegraph and the
+sound stay tied together — because the pitch's whole premise is that hearing
+the music *is* the tell, not a UI countdown. A successful dodge counters for
+boss damage; a failed one costs player health. Round ends in victory (boss
+health empties) or defeat (yours does).
+
+- **Detectors:** `onset`, `bands` (bass vs. higher-band classifies which
+  attack fires) — the same classification shape as Rhythm Siege, aimed at one
+  scripted opponent instead of a wave of independent enemies.
+- **Input:** either — mic or file, degrading no differently either way, since
+  every attack is decided live off whatever's actually sounding right now.
+- **Platform:** mobile-first — a lane-switch tap is the entire verb.
+- **Risk:** medium — the telegraph window has to be tuned tight enough to
+  feel like *the music* is attacking you and not a delayed UI cue, which is a
+  feel judgement no test suite settles.
+
+## B8. Quiet Passage — `built`
+
+Puzzle-platformer: the player's vertical position is not jumped, it is *set*
+by the track's own loudness at the current instant — loud pins you down
+against a floor of hazards, quiet lifts you toward gaps in a hazard ceiling
+above. Those gaps are placed, during the same offline pass, only where the
+track is actually quiet for long enough to survive one — so the level is
+never unfair, but it is only ever crossable by ear. A second, smaller
+constraint ties the theme all the way through the mechanic rather than just
+the vertical axis: lateral lane-switching (needed because a given gap isn't
+always in the lane you're already in) only responds while the track is quiet
+enough to hear yourself think — so lining up for a gap has to happen *during*
+the quiet passage that reveals it, not before.
+
+- **Detectors:** none live for gravity or gap placement — both come from one
+  offline loudness-over-time pass (a plain windowed RMS envelope, not a full
+  spectral analysis — much cheaper than Trackgen's or Drop Siege's passes).
+  `level`/`bands` play no role; this is the one Category B game built on
+  loudness alone, offline.
+- **Input:** **file only.** Fairness requires the whole loudness curve before
+  the round starts, same reasoning as Drop Siege and Trackgen.
+- **Platform:** mobile-first — lane-switch taps, gated by quietness.
+- **Risk:** medium — an entirely passive vertical axis is a real design bet;
+  if lane-switching alone doesn't carry enough agency to feel like a puzzle
+  rather than a slideshow, that's a fun risk no amount of correct RMS math
+  fixes.
+
+## Bridge idea — karaoke-battler (stretch, documented only)
+
+Offline melody extraction from a loaded track (the track's own sung/played
+melody line, pulled out the way `sections.ts` pulls out structure) paired
+with live pitch scoring against it while the player sings along — the one
+idea on this list that needs *both* halves of the engine at once, category A's
+live pitch pipeline and category B's whole-file offline analysis, in the same
+round. Genuinely interesting because it's where the two families the menu now
+splits games into actually meet, rather than a game that happens to use two
+detectors.
+
+Deliberately **not** on the build list yet. Extracting a clean, singable
+melody line from a full mix (as opposed to the coarse octave-band structure
+`sections.ts` needs, or the drum-band onsets B5–B7 need) is a much harder,
+much less forgiving DSP problem than anything else in this backlog — getting
+it wrong doesn't just make a chapter boundary land a beat late, it makes the
+whole game unplayable, since the player is being scored against a target line
+that has to actually be the tune. Recorded here so the idea isn't lost, not
+because it's next.
+
 ---
 
 # Known hazards
