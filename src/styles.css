@@ -148,6 +148,23 @@ button:disabled {
   opacity: 0.5;
 }
 
+.game-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.game-section__heading {
+  font-size: 0.95rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.game-section .hint {
+  margin-top: -0.5rem;
+}
+
 .card h2 {
   margin-bottom: 0.2rem;
 }

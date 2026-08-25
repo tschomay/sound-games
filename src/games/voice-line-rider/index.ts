@@ -69,6 +69,7 @@ class VoiceLineRiderGame implements Game {
 export const voiceLineRider: GameDefinition = {
   id: 'voice-line-rider',
   title: 'Voice Line Rider',
+  category: 'voice',
   description: 'Hum a few seconds of tune; a marble rolls down what you sang. Get it to the goal.',
   requires: 'pitchRange',
   sources: ['mic'],

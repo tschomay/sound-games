@@ -44,6 +44,7 @@ class EcosystemGardenGame implements Game {
 export const ecosystemGarden: GameDefinition = {
   id: 'ecosystem-garden',
   title: 'Ecosystem Garden',
+  category: 'music',
   description: 'Tend a garden with your music. Bass grows it, mids populate it, highs are weather — and loud passages bring predators only a shout can scare off.',
   requires: 'room',
   sources: ['mic', 'file'],
