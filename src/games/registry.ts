@@ -9,6 +9,10 @@ import { ecosystemGarden } from './ecosystem-garden';
 import { rhythmGatedCombat } from './rhythm-gated-combat';
 import { dropSiege } from './drop-siege';
 import { overtone } from './overtone';
+import { trackgen } from './trackgen';
+import { rhythmSiege } from './rhythm-siege';
+import { conductorBoss } from './conductor-boss';
+import { quietPassage } from './quiet-passage';
 import type { GameDefinition } from '../engine/game';
 
 export const GAMES: readonly GameDefinition[] = [
@@ -22,6 +26,10 @@ export const GAMES: readonly GameDefinition[] = [
   rhythmGatedCombat,
   dropSiege,
   overtone,
+  trackgen,
+  rhythmSiege,
+  conductorBoss,
+  quietPassage,
 ];
 
 export function findGame(id: string): GameDefinition | undefined {

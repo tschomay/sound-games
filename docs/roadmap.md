@@ -883,6 +883,24 @@ roadmap opened with, just applied with every capability it needs — `centroid`,
 engine from prior phases. Nothing here required new shared plumbing or a new
 ADR; see `games/overtone/game.ts` for the design reasoning.
 
+**B5–B8, four more Category B ideas in one pass.** A second round of the same
+reasoning: four new pitches (`docs/ideas.md`'s B5 Trackgen, B6 Rhythm Siege, B7
+Conductor Boss, B8 Quiet Passage), each designed then built against the same
+existing engine, with no new detector and — for three of the four — no new
+offline-analysis primitive either. The one genuinely new piece of work is
+Trackgen's per-section mean spectral centroid, and even that is composition,
+not new DSP: the same `Fft`/`hannWindow` helpers `sections.ts` already uses,
+called from `games/trackgen/`'s own offline pass rather than added to the
+engine, because nothing else needs it. Quiet Passage's offline loudness
+envelope is plainer still — a windowed RMS pass, no FFT at all. B5 and B8 are
+both file-only for the same reason Drop Siege is: fairness (a level that's
+fair to cross, collectibles that are reachable) requires seeing the whole
+track before the round starts. B6 and B7 are the opposite bet on purpose —
+both are built to be exactly as good on live mic as on a file, the live-mic
+counterpart to B2/B5/B8's file-only trio. See each game's own `game.ts` for
+the full design reasoning, and B5's entry in `docs/ideas.md` for the one
+place this round's scope was deliberately cut back from the original pitch.
+
 ---
 
 ## Cross-cutting, continuously
