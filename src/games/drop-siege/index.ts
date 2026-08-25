@@ -177,6 +177,7 @@ function laneCenterY(lane: Lane): number {
 export const dropSiege: GameDefinition = {
   id: 'drop-siege',
   title: 'Drop Siege',
+  category: 'music',
   description:
     "Load a track and defend against waves shaped by its own structure — quiet sections trickle enemies in, loud ones swarm, and the track's biggest moment arrives as a boss you can see coming.",
   requires: 'room',

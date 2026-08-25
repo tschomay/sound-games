@@ -107,6 +107,7 @@ class SonarMazeGame implements Game {
 export const sonarMaze: GameDefinition = {
   id: 'sonar-maze',
   title: 'Sonar Maze',
+  category: 'voice',
   description: 'Clap to light up the maze. Louder claps see further — and draw the hunter closer.',
   requires: 'room',
   sources: ['mic'],

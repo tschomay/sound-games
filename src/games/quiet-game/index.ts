@@ -47,6 +47,7 @@ class QuietGameGame implements Game {
 export const quietGame: GameDefinition = {
   id: 'quiet-game',
   title: 'Quiet Game',
+  category: 'voice',
   description: 'Sneak below the line past the guards. Shout on purpose to shatter glass.',
   requires: 'room',
   sources: ['mic'],

@@ -29,11 +29,20 @@ export interface Game {
   reset(): void;
 }
 
+/**
+ * Which of the two families (see `CONTEXT.md`'s glossary and `docs/ideas.md`)
+ * a game belongs to: `'voice'` is "you make the sound" — the player is the
+ * controller — and `'music'` is "music drives the world" — the player
+ * supplies music and the world reacts. The menu partitions its cards on this.
+ */
+export type Category = 'voice' | 'music';
+
 export interface GameDefinition {
   /** Stable — it is the route and the high-score key, so renaming it loses scores. */
   id: string;
   title: string;
   description: string;
+  category: Category;
   requires: Requirement | null;
   /** Which audio sources this game can be played with. See ADR-0001. */
   sources: readonly SourceKind[];

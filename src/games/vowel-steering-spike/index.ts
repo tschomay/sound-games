@@ -57,6 +57,7 @@ class VowelSteeringSpikeGame implements Game {
 export const vowelSteeringSpike: GameDefinition = {
   id: 'vowel-steering-spike',
   title: 'Vowel Steering (spike)',
+  category: 'voice',
   description:
     'Feasibility test, not a finished game: pitch steers up/down, vowel shape ("ee"–"oo") steers left/right. Might not feel great yet.',
   requires: 'pitchRange',

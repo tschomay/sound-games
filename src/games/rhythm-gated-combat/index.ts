@@ -103,6 +103,7 @@ class RhythmGatedCombatGame implements Game {
 export const rhythmGatedCombat: GameDefinition = {
   id: 'rhythm-gated-combat',
   title: 'Rhythm-Gated Combat',
+  category: 'music',
   description:
     'You can only attack on the beat. Enemies close in on the beat too — a file source shows you them coming.',
   requires: 'room',

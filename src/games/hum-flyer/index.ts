@@ -60,6 +60,7 @@ class HumFlyerGame implements Game {
 export const humFlyer: GameDefinition = {
   id: 'hum-flyer',
   title: 'Hum Flyer',
+  category: 'voice',
   description: 'Hum to fly. Higher note, higher flight. Thread the gaps.',
   requires: 'pitchRange',
   sources: ['mic'],

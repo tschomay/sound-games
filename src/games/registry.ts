@@ -8,6 +8,7 @@ import { vowelSteeringSpike } from './vowel-steering-spike';
 import { ecosystemGarden } from './ecosystem-garden';
 import { rhythmGatedCombat } from './rhythm-gated-combat';
 import { dropSiege } from './drop-siege';
+import { overtone } from './overtone';
 import type { GameDefinition } from '../engine/game';
 
 export const GAMES: readonly GameDefinition[] = [
@@ -20,6 +21,7 @@ export const GAMES: readonly GameDefinition[] = [
   ecosystemGarden,
   rhythmGatedCombat,
   dropSiege,
+  overtone,
 ];
 
 export function findGame(id: string): GameDefinition | undefined {

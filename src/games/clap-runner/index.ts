@@ -57,6 +57,7 @@ class ClapRunnerGame implements Game {
 export const clapRunner: GameDefinition = {
   id: 'clap-runner',
   title: 'Clap Runner',
+  category: 'voice',
   description: 'Clap to jump, hold "aaah" to glide, shout to ground-pound.',
   requires: 'room',
   sources: ['mic'],

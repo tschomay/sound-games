@@ -15,10 +15,46 @@ const TOOLS = [
   },
 ];
 
+/**
+ * The two families a game can belong to (`engine/game.ts`'s `Category`, see
+ * `CONTEXT.md`'s glossary), in registry order — `voice` games were built
+ * first and stay listed first. Each gets its own section on the menu rather
+ * than one flat list, since the two play so differently that grouping them
+ * unprompted saves a player from reading nine cards to find the kind they're
+ * after.
+ */
+const CATEGORY_SECTIONS: ReadonlyArray<{
+  category: GameDefinition['category'];
+  heading: string;
+  blurb: string;
+}> = [
+  {
+    category: 'voice',
+    heading: 'You make the sound',
+    blurb: 'The player is the controller — hum, clap or shout to play.',
+  },
+  {
+    category: 'music',
+    heading: 'Music drives the world',
+    blurb: 'Play a track or let the room play; the world reacts to it.',
+  },
+];
+
 export function menuScreen(root: HTMLElement): Cleanup {
   const profile = loadProfile();
 
-  const cards = GAMES.map((game) => gameCard(game, profile));
+  const sections = CATEGORY_SECTIONS.map((section) => {
+    const games = GAMES.filter((game) => game.category === section.category);
+    if (games.length === 0) return null;
+    return el(
+      'section',
+      { class: 'game-section' },
+      el('h2', { class: 'game-section__heading', text: section.heading }),
+      el('p', { class: 'hint', text: section.blurb }),
+      ...games.map((game) => gameCard(game, profile)),
+    );
+  }).filter((section): section is HTMLElement => section !== null);
+
   const tools = TOOLS.map((tool) => {
     const card = el(
       'button',
@@ -38,9 +74,11 @@ export function menuScreen(root: HTMLElement): Cleanup {
         'div',
         { class: 'stack' },
         el('h1', { text: 'Sound Games' }),
-        el('p', { text: 'Games you play with your voice. Headphones recommended.' }),
+        el('p', {
+          text: 'Games you play with your voice, and games your music plays with you. Headphones recommended.',
+        }),
         setupPanel(profile),
-        ...cards,
+        ...sections,
         ...tools,
       ),
     ),
